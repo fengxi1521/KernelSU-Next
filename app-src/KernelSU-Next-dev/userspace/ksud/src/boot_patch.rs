@@ -784,7 +784,23 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             println!("- Adding XiaoFeng LKM");
             let is_xiaofeng_patched = cpio.exists("xiaofeng.ko");
 
-            if !is_xiaofeng_patched && cpio.exists("init") {
+            // The ramdisk's init is replaced by xfginit, which hands control over
+            // to `init.real`. If the ramdisk has no init at all, there is nothing
+            // to hand over to: PID 1 would exit right after the module load and
+            // the kernel would panic, i.e. the device bootloops. Refuse to build
+            // such an image instead of silently producing a brick.
+            if !cpio.exists("init.real") {
+                ensure!(
+                    cpio.exists("init"),
+                    "The selected image's ramdisk contains no `init` entry, so a \
+                     patched image would bootloop. On Android 13+ select init_boot.img \
+                     instead of boot.img."
+                );
+                ensure!(
+                    !is_xiaofeng_patched,
+                    "The selected image is already patched but `init.real` is missing. \
+                     Patch a stock image instead."
+                );
                 cpio.mv("init", "init.real")?;
             }
 
