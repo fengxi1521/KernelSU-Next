@@ -61,6 +61,7 @@ subprojects {
     plugins.withType(AndroidBasePlugin::class.java) {
         extensions.configure(CommonExtension::class.java) {
             compileSdk = androidCompileSdkVersion
+            buildToolsVersion = androidBuildToolsVersion
             ndkVersion = androidCompileNdkVersion
 
             defaultConfig {

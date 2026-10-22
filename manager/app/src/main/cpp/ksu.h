@@ -2,8 +2,8 @@
 // Created by weishu on 2022/12/9.
 //
 
-#ifndef KERNELSU_KSU_H
-#define KERNELSU_KSU_H
+#ifndef XFENG_KSU_H
+#define XFENG_KSU_H
 
 #include <cstdint>
 #include <sys/ioctl.h>
@@ -79,4 +79,4 @@ inline std::pair<int, int> legacy_get_info() {
     return {version, flags};
 }
 
-#endif //KERNELSU_KSU_H
+#endif //XFENG_KSU_H

@@ -1,1 +1,1 @@
-# KernelSU-Next installer/uninstaller script
+# XiaoFeng installer/uninstaller script

@@ -1,0 +1,1 @@
+# XiaoFeng installer/uninstaller script
