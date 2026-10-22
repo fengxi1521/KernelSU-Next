@@ -1,6 +1,6 @@
 #!/system/bin/sh
 ############################################
-# KernelSU installer script
+# XiaoFeng installer script
 # mostly from module_installer.sh
 # and util_functions.sh in Magisk
 ############################################
@@ -8,7 +8,7 @@
 umask 022
 
 # customize.sh may set MODULE_HOT_INSTALL_REQUEST=true to skip the reboot
-export KSU_HAS_HOT_INSTALL=true
+export XFG_HAS_HOT_INSTALL=true
 
 ui_print() {
   if $BOOTMODE; then
@@ -75,7 +75,7 @@ print_title() {
 }
 
 check_sepolicy() {
-    /data/adb/ksud sepolicy check "$1"
+    /data/adb/xfgd sepolicy check "$1"
     return $?
 }
 
@@ -269,8 +269,8 @@ check_managed_features() {
     feature=$(echo "$feature" | xargs)
     [ -z "$feature" ] && continue
 
-    # Check feature status using ksud
-    local status=$(/data/adb/ksud feature check "$feature" 2>/dev/null)
+    # Check feature status using xfgd
+    local status=$(/data/adb/xfgd feature check "$feature" 2>/dev/null)
 
     case "$status" in
       "unsupported")
@@ -410,7 +410,7 @@ install_module() {
     set_permissions
   else
     print_title "$MODNAME" "by $MODAUTH"
-    print_title "Powered by KernelSU-Next"
+    print_title "Powered by XiaoFeng"
 
     unzip -o "$ZIPFILE" customize.sh -d $MODPATH >&2
 
@@ -453,11 +453,11 @@ install_module() {
     rm -rf $NVBASE/modules/$MODID/disable 2>/dev/null
     cp -af $MODPATH/module.prop $NVBASE/modules/$MODID/module.prop
 
-    # Tell ksud to apply the module right away
+    # Tell xfgd to apply the module right away
     if [ "$MODULE_HOT_INSTALL_REQUEST" = "true" ]; then
-      echo "$MODULE_HOT_RUN_SCRIPT" > $MODPATH/.ksu_hot_install
+      echo "$MODULE_HOT_RUN_SCRIPT" > $MODPATH/.xfg_hot_install
     else
-      rm -f $MODPATH/.ksu_hot_install
+      rm -f $MODPATH/.xfg_hot_install
     fi
   fi
 

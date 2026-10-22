@@ -15,7 +15,7 @@
 // needs nothing maintained on our side.
 //
 // The list is supplied via the `block_modules=name1,name2,...` module param,
-// which flows in through ksu_config (boot-patch / boot-patch-v2) or the kernel
+// which flows in through xfg_config (boot-patch / boot-patch-v2) or the kernel
 // cmdline (built-in). Names use the kernel form (underscores, e.g.
 // `oplus_secure_guard`).
 //
@@ -27,7 +27,7 @@ static char block_modules[256];
 
 // The param may be parsed before the slab allocator is up (built-in), so copy
 // into a static buffer instead of allocating. Truncate rather than fail: a
-// param error would abort the whole KernelSU load.
+// param error would abort the whole XiaoFeng load.
 static int block_modules_param_set(const char *val, const struct kernel_param *kp)
 {
     if (!val || !val[0])
@@ -47,7 +47,7 @@ static const struct kernel_param_ops block_modules_param_ops = {
 module_param_cb(block_modules, &block_modules_param_ops, NULL, 0);
 
 // Merge the configured names into the kernel's native module_blacklist.
-void __init ksu_module_blacklist_init(void)
+void __init xfg_module_blacklist_init(void)
 {
     char **native_blacklist;
     const char *existing;
@@ -83,7 +83,7 @@ void __init ksu_module_blacklist_init(void)
     pr_info("module_blacklist: blocking modules: %s\n", merged);
 }
 
-void __exit ksu_module_blacklist_exit(void)
+void __exit xfg_module_blacklist_exit(void)
 {
     // Intentionally does NOT restore the original module_blacklist pointer.
     // The module loader reads module_blacklist in blacklisted() without any
@@ -91,6 +91,6 @@ void __exit ksu_module_blacklist_exit(void)
     // the pointer back (especially to the common NULL) could race that reader
     // into a NULL dereference. The merged string already contains any
     // pre-existing entries and lives on the kernel heap, so leaving it installed
-    // stays valid even after KernelSU is unloaded. The one-time, bounded
+    // stays valid even after XiaoFeng is unloaded. The one-time, bounded
     // allocation is deliberately leaked.
 }

@@ -53,7 +53,7 @@ void __system_property_read_callback(const prop_info* pi,
     orig_fn(pi, callback, cookie);
 }
 
-// If the user creates ksurc, use ksurc instead of mkshrc
+// If the user creates xfgrc, use xfgrc instead of mkshrc
 // https://cs.android.com/android/platform/superproject/+/android-latest-release:packages/modules/adb/daemon/shell_service.cpp;l=389-394
 extern "C" [[gnu::visibility("default"), gnu::used]]
 int execle(const char *pathname, const char *arg, ...) {
@@ -76,23 +76,23 @@ int execle(const char *pathname, const char *arg, ...) {
 
     // start dump envp
     std::vector<const char *> env_list;
-    bool ksurc_exists = (access("/data/adb/ksu/.ksurc", F_OK) == 0);
-    const char *ksu_env_str = "ENV=/data/adb/ksu/.ksurc";
+    bool xfgrc_exists = (access("/data/adb/xfg/.xfgrc", F_OK) == 0);
+    const char *xfg_env_str = "ENV=/data/adb/xfg/.xfgrc";
 
     if (old_envp != nullptr) {
         for (size_t i = 0; old_envp[i] != nullptr; ++i) {
             // skip original ENV in envp
             // even there shouldn't exists in normal android, but let's still check it, avoid newer android/custom rom modify there
-            if (ksurc_exists && strncmp(old_envp[i], "ENV=", 4) == 0) {
+            if (xfgrc_exists && strncmp(old_envp[i], "ENV=", 4) == 0) {
                 continue;
             }
             env_list.push_back(old_envp[i]);
         }
     }
 
-    if (ksurc_exists) {
+    if (xfgrc_exists) {
         // push our ENV in here!!!
-        env_list.push_back(ksu_env_str);
+        env_list.push_back(xfg_env_str);
     }
     env_list.push_back(nullptr);
 
@@ -115,9 +115,9 @@ void Init() {
     unsetenv("LD_LIBRARY_PATH");
     std::string path = getenv("PATH") ?: "";
     if (!path.empty()) {
-        path += ":/data/adb/ksu/bin";
+        path += ":/data/adb/xfg/bin";
     } else {
-        path += "/data/adb/ksu/bin";
+        path += "/data/adb/xfg/bin";
     }
     setenv("PATH", path.c_str(), 1);
 }

@@ -45,7 +45,7 @@ import com.xiao.feng.ui.viewmodel.TemplateViewModel
 import com.xiao.feng.ui.viewmodel.toJSON
 
 /**
- * @author weishu
+ * @author XiaoFeng
  * @date 2023/10/20.
  */
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)

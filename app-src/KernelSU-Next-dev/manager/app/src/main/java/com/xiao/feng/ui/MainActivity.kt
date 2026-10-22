@@ -67,7 +67,7 @@ import com.ramcosta.composedestinations.utils.isRouteOnBackStackAsState
 import com.ramcosta.composedestinations.utils.rememberDestinationsNavigator
 import com.xiao.feng.Natives
 import com.xiao.feng.R
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.xiao.feng.ui.screen.BottomBarDestination
 import com.xiao.feng.ui.screen.FlashIt
 import com.xiao.feng.ui.theme.XiaoFengTheme
@@ -300,7 +300,7 @@ class MainActivity : FragmentActivity() {
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    painter = painterResource(R.drawable.ic_ksu_next),
+                                    painter = painterResource(R.drawable.ic_xfg_next),
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier

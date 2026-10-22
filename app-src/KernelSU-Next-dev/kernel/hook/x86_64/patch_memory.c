@@ -20,10 +20,10 @@
 #include <asm/fixmap.h>
 
 // --- Architecture-specific Page Table to Physical Address translation ---
-#define KSU_P4D_TO_PHYS(p4d) ((unsigned long)p4d_pfn(p4d) << PAGE_SHIFT)
-#define KSU_PUD_TO_PHYS(pud) ((unsigned long)pud_pfn(pud) << PAGE_SHIFT)
-#define KSU_PMD_TO_PHYS(pmd) ((unsigned long)pmd_pfn(pmd) << PAGE_SHIFT)
-#define KSU_PTE_TO_PHYS(pte) ((unsigned long)pte_pfn(pte) << PAGE_SHIFT)
+#define XFG_P4D_TO_PHYS(p4d) ((unsigned long)p4d_pfn(p4d) << PAGE_SHIFT)
+#define XFG_PUD_TO_PHYS(pud) ((unsigned long)pud_pfn(pud) << PAGE_SHIFT)
+#define XFG_PMD_TO_PHYS(pmd) ((unsigned long)pmd_pfn(pmd) << PAGE_SHIFT)
+#define XFG_PTE_TO_PHYS(pte) ((unsigned long)pte_pfn(pte) << PAGE_SHIFT)
 
 // Translate a kernel virtual address to a physical address by walking the
 // init_mm page tables.
@@ -52,11 +52,11 @@ unsigned long phys_from_virt(unsigned long addr, int *err)
 #if defined(p4d_leaf)
     if (p4d_leaf(*p4d)) {
         pr_debug("Address 0x%lx maps to a P4D-level huge page\n", addr);
-        return KSU_P4D_TO_PHYS(*p4d) + ((addr & ~P4D_MASK));
+        return XFG_P4D_TO_PHYS(*p4d) + ((addr & ~P4D_MASK));
     }
 #elif defined(p4d_large)
     if (p4d_large(*p4d)) {
-        return KSU_P4D_TO_PHYS(*p4d) + ((addr & ~P4D_MASK));
+        return XFG_P4D_TO_PHYS(*p4d) + ((addr & ~P4D_MASK));
     }
 #endif
 
@@ -68,11 +68,11 @@ unsigned long phys_from_virt(unsigned long addr, int *err)
 #if defined(pud_leaf)
     if (pud_leaf(*pud)) {
         pr_debug("Address 0x%lx maps to a PUD-level huge page\n", addr);
-        return KSU_PUD_TO_PHYS(*pud) + ((addr & ~PUD_MASK));
+        return XFG_PUD_TO_PHYS(*pud) + ((addr & ~PUD_MASK));
     }
 #elif defined(pud_large)
     if (pud_large(*pud)) {
-        return KSU_PUD_TO_PHYS(*pud) + ((addr & ~PUD_MASK));
+        return XFG_PUD_TO_PHYS(*pud) + ((addr & ~PUD_MASK));
     }
 #endif
 
@@ -82,11 +82,11 @@ unsigned long phys_from_virt(unsigned long addr, int *err)
 #if defined(pmd_leaf)
     if (pmd_leaf(*pmd)) {
         pr_debug("Address 0x%lx maps to a PMD-level huge page\n", addr);
-        return KSU_PMD_TO_PHYS(*pmd) + ((addr & ~PMD_MASK));
+        return XFG_PMD_TO_PHYS(*pmd) + ((addr & ~PMD_MASK));
     }
 #elif defined(pmd_large)
     if (pmd_large(*pmd)) {
-        return KSU_PMD_TO_PHYS(*pmd) + ((addr & ~PMD_MASK));
+        return XFG_PMD_TO_PHYS(*pmd) + ((addr & ~PMD_MASK));
     }
 #endif
 
@@ -99,7 +99,7 @@ unsigned long phys_from_virt(unsigned long addr, int *err)
     if (!pte_present(*pte))
         goto fail;
 
-    return KSU_PTE_TO_PHYS(*pte) + ((addr & ~PAGE_MASK));
+    return XFG_PTE_TO_PHYS(*pte) + ((addr & ~PAGE_MASK));
 
 fail:
     *err = -ENOENT;
@@ -107,9 +107,9 @@ fail:
 }
 
 // --- Architecture-specific Cache Flushing & Barriers ---
-#define ksu_flush_dcache(start, sz) do {} while (0)
-#define ksu_flush_icache(start, end) do {} while (0)
-#define ksu_isb() smp_mb()
+#define xfg_flush_dcache(start, sz) do {} while (0)
+#define xfg_flush_icache(start, end) do {} while (0)
+#define xfg_isb() smp_mb()
 
 struct patch_text_info {
     void *dst;
@@ -119,7 +119,7 @@ struct patch_text_info {
     int flags;
 };
 
-static int ksu_patch_text_nosync(void *dst, void *src, size_t len, int flags)
+static int xfg_patch_text_nosync(void *dst, void *src, size_t len, int flags)
 {
     pr_debug("patch dst=0x%lx src=0x%lx len=%ld\n", (unsigned long)dst,
              (unsigned long)src, len);
@@ -147,10 +147,10 @@ static int ksu_patch_text_nosync(void *dst, void *src, size_t len, int flags)
     clear_fixmap(FIX_BTMAP_BEGIN);
 
     if (!ret) {
-        if (flags & KSU_PATCH_TEXT_FLUSH_ICACHE)
-            ksu_flush_icache((uintptr_t)dst, (uintptr_t)dst + len);
-        if (flags & KSU_PATCH_TEXT_FLUSH_DCACHE)
-            ksu_flush_dcache(dst, len);
+        if (flags & XFG_PATCH_TEXT_FLUSH_ICACHE)
+            xfg_flush_icache((uintptr_t)dst, (uintptr_t)dst + len);
+        if (flags & XFG_PATCH_TEXT_FLUSH_DCACHE)
+            xfg_flush_dcache(dst, len);
     }
 
 err:
@@ -158,7 +158,7 @@ err:
     return ret;
 }
 
-static int ksu_patch_text_cb(void *arg)
+static int xfg_patch_text_cb(void *arg)
 {
     struct patch_text_info *pp = arg;
     void *dst = pp->dst, *src = pp->src;
@@ -169,19 +169,19 @@ static int ksu_patch_text_cb(void *arg)
 
     /* The last CPU becomes master */
     if (atomic_inc_return(&pp->cpu_count) == num_online_cpus()) {
-        ret = ksu_patch_text_nosync(dst, src, len, flags);
+        ret = xfg_patch_text_nosync(dst, src, len, flags);
         /* Notify other processors with an additional increment. */
         atomic_inc(&pp->cpu_count);
     } else {
         while (atomic_read(&pp->cpu_count) <= num_online_cpus())
             cpu_relax();
-        ksu_isb();
+        xfg_isb();
     }
 
     return ret;
 }
 
-int ksu_patch_text(void *dst, void *src, size_t len, int flags)
+int xfg_patch_text(void *dst, void *src, size_t len, int flags)
 {
     struct patch_text_info info = {
         .dst = dst,
@@ -191,7 +191,7 @@ int ksu_patch_text(void *dst, void *src, size_t len, int flags)
         .flags = flags,
     };
 
-    return stop_machine(ksu_patch_text_cb, &info, cpu_online_mask);
+    return stop_machine(xfg_patch_text_cb, &info, cpu_online_mask);
 }
 
 // TODO:

@@ -21,12 +21,12 @@ use rustix::{
 use crate::{
     assets, defs,
     init_event::{on_boot_completed, on_post_fs_data, on_services, run_stage},
-    ksucalls,
+    xfgcalls,
     module::ScriptWait,
     utils::{self, switch_mnt_ns},
 };
 
-const WAITSYS_FD_ENV: &str = "KSU_WAITSYS_FD";
+const WAITSYS_FD_ENV: &str = "XFG_WAITSYS_FD";
 
 struct Waitsys {
     child: Child,
@@ -150,7 +150,7 @@ fn wait_for_boot_completed() -> Result<()> {
 
 pub fn soft_reboot() -> Result<()> {
     // check it avoid user click "soft_reboot" in manager when version mismatch
-    if let Err(e) = ksucalls::ensure_uapi_version_matched() {
+    if let Err(e) = xfgcalls::ensure_uapi_version_matched() {
         error!("{e:#}, skip soft_reboot");
         return Ok(());
     }

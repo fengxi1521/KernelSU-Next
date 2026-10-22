@@ -14,7 +14,7 @@ mod android {
 
     pub fn ensure_binaries(ignore_if_exist: bool) -> anyhow::Result<()> {
         for file in Asset::iter() {
-            if file == "ksuinit" || file == "waitsys" || file.ends_with(".ko") {
+            if file == "xfginit" || file == "waitsys" || file.ends_with(".ko") {
                 // don't extract internal executables and kernel modules
                 continue;
             }
@@ -23,10 +23,10 @@ mod android {
             ensure_binary(format!("{BINARY_DIR}{file}"), &asset.data, ignore_if_exist)?;
         }
 
-        // Create resetprop -> ksud symlink (resetprop is now built into ksud)
+        // Create resetprop -> xfgd symlink (resetprop is now built into xfgd)
         let resetprop_link = RESETPROP_PATH;
         let _ = std::fs::remove_file(resetprop_link);
-        std::os::unix::fs::symlink("/data/adb/ksud", resetprop_link)?;
+        std::os::unix::fs::symlink("/data/adb/xfgd", resetprop_link)?;
 
         Ok(())
     }
@@ -70,8 +70,8 @@ pub fn get_asset(name: &str) -> Result<Box<dyn AsRef<[u8]>>> {
 pub fn list_supported_kmi() -> std::vec::Vec<std::string::String> {
     let mut list = Vec::new();
     for file in Asset::iter() {
-        // kmi_name = "xxx_kernelsu.ko"
-        if let Some(kmi) = file.strip_suffix("_kernelsu.ko") {
+        // kmi_name = "xxx_xiaofeng.ko"
+        if let Some(kmi) = file.strip_suffix("_xiaofeng.ko") {
             list.push(kmi.to_string());
         }
     }

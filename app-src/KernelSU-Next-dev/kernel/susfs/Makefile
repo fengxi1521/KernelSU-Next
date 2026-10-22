@@ -1,6 +1,6 @@
 # susfs - SUSFS loadable kernel module (LKM)
 #
-# Build against DDK kernel headers (same image that builds kernelsu.ko):
+# Build against DDK kernel headers (same image that builds xiaofeng.ko):
 #   make -C $KDIR M=$PWD ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 modules
 #
 # Only the shipping module is built, and this objs list is the whole of it: the probe/test
@@ -12,7 +12,7 @@ susfs_guard_lkm-objs := susfs_main.o patch_memory.o symbol_resolver.o lsm_hook.o
               susfs_uname.o susfs_kstat.o sus_map.o sus_path.o sus_mount.o \
               spoof_cmdline.o susfs_open_redirect.o susfs_enable_log.o \
               susfs_avc_spoof.o susfs_supercall.o susfs_hide_syms.o imports_guard.o \
-              ksu_umount_gate.o ksu_allow_gate.o susfs_fp_hook.o susfs_opath.o susfs_or_entry.o \
+              xfg_umount_gate.o xfg_allow_gate.o susfs_fp_hook.o susfs_opath.o susfs_or_entry.o \
               fsnotify_lifetime.o btf_layout.o sus_dirent.o
 
 # The dcache/icache flush helper is NOT picked at build time any more: which spelling a kernel
@@ -25,7 +25,7 @@ susfs_guard_lkm-objs := susfs_main.o patch_memory.o symbol_resolver.o lsm_hook.o
 # it used to be a parse-time $(error), which aborted make before any goal was chosen and so made
 # the `all:` entry point below - and KDIR's default - unreachable.  It now lives in the `all:`
 # recipe, i.e. it fires when the build is actually attempted.
-KSU_SRCTREE_MISSING := $(if $(srctree),0,1)
+XFG_SRCTREE_MISSING := $(if $(srctree),0,1)
 
 # Match SukiSU's build flags: upstream code declares after statements and
 # casts symbol addresses (unsigned long) to function pointers.
@@ -38,16 +38,16 @@ ccflags-y += -I$(srctree)/fs
 
 # Stack protector: arm64 got its per-task canary (read from sp_el0, no symbol involved) in 5.11,
 # and the module inherits the kernel's mode.  Below that the kernel uses the global
-# __stack_chk_guard, which the module then references - and that is the name `ksud insmod` cannot
+# __stack_chk_guard, which the module then references - and that is the name `xfgd insmod` cannot
 # resolve (its kallsyms walk stops at the first record that is not three fields, while the bundled
 # susfs_insmod reads the file to the end and does find it), so the load dies with
 # "Unknown symbol __stack_chk_guard".  Nothing is lost where the kernel predates the canary: the
 # guard would only protect this module's own stack.
-KSU_KERNEL_HAS_PER_TASK_GUARD := $(shell [ "$(VERSION)" -gt 5 ] && echo yes)
+XFG_KERNEL_HAS_PER_TASK_GUARD := $(shell [ "$(VERSION)" -gt 5 ] && echo yes)
 ifeq ($(VERSION),5)
-KSU_KERNEL_HAS_PER_TASK_GUARD := $(shell [ "$(PATCHLEVEL)" -ge 11 ] && echo yes)
+XFG_KERNEL_HAS_PER_TASK_GUARD := $(shell [ "$(PATCHLEVEL)" -ge 11 ] && echo yes)
 endif
-ifneq ($(KSU_KERNEL_HAS_PER_TASK_GUARD),yes)
+ifneq ($(XFG_KERNEL_HAS_PER_TASK_GUARD),yes)
 ccflags-y += -fno-stack-protector
 endif
 
@@ -58,7 +58,7 @@ endif
 KDIR ?= /lib/modules/$(shell uname -r)/build
 
 all:
-ifeq ($(KSU_SRCTREE_MISSING),1)
+ifeq ($(XFG_SRCTREE_MISSING),1)
 	@echo "srctree is not set - build this module through kbuild: make -C \$${KDIR} M=\$${PWD} modules" >&2
 	@exit 1
 else

@@ -172,9 +172,9 @@ int susfs_btf_layout_init(void)
                                             sizeof(susfs_core_btf)) ||
         IS_ERR_OR_NULL(susfs_core_btf))
         return -EOPNOTSUPP;
-    susfs_btf_type_fn = ksu_resolve_symbol_for_functable_hook("btf_type_by_id");
-    susfs_btf_name_fn = ksu_resolve_symbol_for_functable_hook("btf_name_by_offset");
-    susfs_btf_count_fn = ksu_resolve_symbol_for_functable_hook("btf_nr_types");
+    susfs_btf_type_fn = xfg_resolve_symbol_for_functable_hook("btf_type_by_id");
+    susfs_btf_name_fn = xfg_resolve_symbol_for_functable_hook("btf_name_by_offset");
+    susfs_btf_count_fn = xfg_resolve_symbol_for_functable_hook("btf_nr_types");
     if (!susfs_btf_type_fn || !susfs_btf_name_fn)
         return -EOPNOTSUPP;
     if (susfs_btf_count_fn) {

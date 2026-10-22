@@ -11,50 +11,50 @@
 #include "klog.h" // IWYU pragma: keep
 #include "sulog/event.h"
 
-static DEFINE_MUTEX(ksu_sulog_fd_lock);
-static bool ksu_sulog_fd_active;
+static DEFINE_MUTEX(xfg_sulog_fd_lock);
+static bool xfg_sulog_fd_active;
 
-static ssize_t ksu_sulog_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+static ssize_t xfg_sulog_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 {
-    return ksu_event_queue_read(ksu_sulog_get_queue(), buf, count, file->f_flags);
+    return xfg_event_queue_read(xfg_sulog_get_queue(), buf, count, file->f_flags);
 }
 
-static __poll_t ksu_sulog_poll(struct file *file, poll_table *wait)
+static __poll_t xfg_sulog_poll(struct file *file, poll_table *wait)
 {
-    return ksu_event_queue_poll(ksu_sulog_get_queue(), file, wait);
+    return xfg_event_queue_poll(xfg_sulog_get_queue(), file, wait);
 }
 
-static int ksu_sulog_release(struct inode *inode, struct file *file)
+static int xfg_sulog_release(struct inode *inode, struct file *file)
 {
-    mutex_lock(&ksu_sulog_fd_lock);
-    ksu_sulog_fd_active = false;
-    mutex_unlock(&ksu_sulog_fd_lock);
+    mutex_lock(&xfg_sulog_fd_lock);
+    xfg_sulog_fd_active = false;
+    mutex_unlock(&xfg_sulog_fd_lock);
 
     pr_info("sulog: fd released\n");
     return 0;
 }
 
-static const struct file_operations ksu_sulog_fops = {
+static const struct file_operations xfg_sulog_fops = {
     .owner = THIS_MODULE,
-    .read = ksu_sulog_read,
-    .poll = ksu_sulog_poll,
-    .release = ksu_sulog_release,
+    .read = xfg_sulog_read,
+    .poll = xfg_sulog_poll,
+    .release = xfg_sulog_release,
     .llseek = noop_llseek,
 };
 
-int ksu_install_sulog_fd(void)
+int xfg_install_sulog_fd(void)
 {
     struct file *filp;
     int fd;
 
-    mutex_lock(&ksu_sulog_fd_lock);
+    mutex_lock(&xfg_sulog_fd_lock);
 
-    if (ksu_sulog_fd_active) {
+    if (xfg_sulog_fd_active) {
         fd = -EBUSY;
         goto out_unlock;
     }
 
-    if (READ_ONCE(ksu_sulog_get_queue()->closed)) {
+    if (READ_ONCE(xfg_sulog_get_queue()->closed)) {
         fd = -EPIPE;
         goto out_unlock;
     }
@@ -63,34 +63,34 @@ int ksu_install_sulog_fd(void)
     if (fd < 0)
         goto out_unlock;
 
-    filp = anon_inode_getfile("[ksu_sulog]", &ksu_sulog_fops, NULL, O_RDONLY | O_CLOEXEC);
+    filp = anon_inode_getfile("[xfg_sulog]", &xfg_sulog_fops, NULL, O_RDONLY | O_CLOEXEC);
     if (IS_ERR(filp)) {
         put_unused_fd(fd);
         fd = PTR_ERR(filp);
         goto out_unlock;
     }
 
-    ksu_sulog_fd_active = true;
+    xfg_sulog_fd_active = true;
     fd_install(fd, filp);
     pr_info("sulog: fd installed %d for pid %d\n", fd, current->pid);
 
 out_unlock:
-    mutex_unlock(&ksu_sulog_fd_lock);
+    mutex_unlock(&xfg_sulog_fd_lock);
     return fd;
 }
 
-void __init ksu_sulog_fd_init(void)
+void __init xfg_sulog_fd_init(void)
 {
-    mutex_lock(&ksu_sulog_fd_lock);
-    ksu_sulog_fd_active = false;
-    mutex_unlock(&ksu_sulog_fd_lock);
+    mutex_lock(&xfg_sulog_fd_lock);
+    xfg_sulog_fd_active = false;
+    mutex_unlock(&xfg_sulog_fd_lock);
 }
 
-void __exit ksu_sulog_fd_exit(void)
+void __exit xfg_sulog_fd_exit(void)
 {
-    mutex_lock(&ksu_sulog_fd_lock);
-    ksu_sulog_fd_active = false;
-    mutex_unlock(&ksu_sulog_fd_lock);
+    mutex_lock(&xfg_sulog_fd_lock);
+    xfg_sulog_fd_active = false;
+    mutex_unlock(&xfg_sulog_fd_lock);
 
-    ksu_event_queue_close(ksu_sulog_get_queue());
+    xfg_event_queue_close(xfg_sulog_get_queue());
 }

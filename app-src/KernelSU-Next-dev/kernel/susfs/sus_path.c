@@ -54,8 +54,8 @@
 #include "susfs_log.h"
 #include "susfs.h"	/* susfs_abi_path_ok */
 #include "symbol_resolver.h"	/* find_kernel_symbol_exact, for optional compat probes */
-#include "ksu_umount_gate.h"	/* susfs_is_current_proc_umounted_app (issue #34) */
-#include "ksu_allow_gate.h"	/* the control-node gate is su's own */
+#include "xfg_umount_gate.h"	/* susfs_is_current_proc_umounted_app (issue #34) */
+#include "xfg_allow_gate.h"	/* the control-node gate is su's own */
 
 #include "lsm_hook.h"
 #include "fsnotify_lifetime.h"
@@ -295,7 +295,7 @@ static atomic_t n_dirent_all_hidden = ATOMIC_INIT(0);
  * passes through our own hooks once the rule HAS an inode, so it would be answered -ENOENT and
  * re-resolution could never succeed - measured on the device: without the exemption the rule stays
  * pending forever.  Upstream has no such trap (its hiding is a flag on an inode, not a refusal to
- * answer) and walks under override_creds(ksu_cred) from the workqueue (susfs.c:139, reverted at
+ * answer) and walks under override_creds(xfg_cred) from the workqueue (susfs.c:139, reverted at
  * susfs.c:171) - see sus_path_override_creds().  Exactly one task is exempt, the one inside the
  * resolve call, so every other process keeps being hidden for the whole window; it is cleared right
  * after kern_path() returns, on every path. */
@@ -307,11 +307,11 @@ static inline bool sus_path_is_resolver(void)
 }
 
 /* Upstream resolves its _LOOP list from a workqueue worker under
- * override_creds(ksu_cred) (susfs.c:139 ... revert_creds() at :171): a worker's creds are not the
+ * override_creds(xfg_cred) (susfs.c:139 ... revert_creds() at :171): a worker's creds are not the
  * ones the path should be visible to, and SELinux, DAC and our own gate can tell the difference.
  * Measured on device: a kworker walks as uid 0 in the kernel domain, so
  * kern_path("/data/local/tmp/...") comes back -EACCES and the rule stays pending forever
- * (pend: last-rc=-13).  ksu_cred lives in the `kernelsu` module and
+ * (pend: last-rc=-13).  xfg_cred lives in the `xiaofeng` module and
  * find_kernel_symbol_exact() deliberately refuses module symbols ("ignore symbol ... of module
  * ..."), so the creds of whoever registered the rule are saved instead - one reference, released
  * as soon as the last pending rule is gone (sus_path_maybe_drop_caller_cred()) or on unload - and
@@ -422,9 +422,9 @@ static atomic_t sus_path_pend_logged_rc = ATOMIC_INIT(1);   /* rc already report
  * Defined up here because every decision layer below asks the same question. */
 
 /* Upstream gates on susfs_is_current_proc_umounted_app() && is_i_uid_not_allowed(): only app
- * processes KernelSU would umount modules for, and never a file owned by the caller.  TIF_PROC_
- * UMOUNTED is a SUSFS-specific thread flag this LKM cannot set, so the first half is KernelSU's
- * own answer asked directly (susfs_is_current_proc_umounted_app(), ksu_umount_gate.h).  Hiding from
+ * processes XiaoFeng would umount modules for, and never a file owned by the caller.  TIF_PROC_
+ * UMOUNTED is a SUSFS-specific thread flag this LKM cannot set, so the first half is XiaoFeng's
+ * own answer asked directly (susfs_is_current_proc_umounted_app(), xfg_umount_gate.h).  Hiding from
  * every `uid >= 10000` - manager and su-granted apps included - was issue #34.
  * hide_from_apps=0 applies the hidden set to every process including root - handy when testing from
  * an adb shell. */
@@ -550,8 +550,8 @@ bool sus_path_dirent_hidden(u64 ino, const char *name)
  * Upstream does not resolve at add time: susfs_add_sus_path_loop() (susfs.c:99-132) checks for an
  * empty string only and stores the path on LH_SUS_PATH_LOOP; susfs_run_sus_path_loop()
  * (susfs.c:134-172) walks that list with kern_path() later, triggered by susfs_run_extra_works()
- * (susfs.c:1451-1457) from ksu_handle_extra_susfs_work()
- * (KernelSU/10_enable_susfs_for_ksu.patch:1599-1607) as zygote marks an app TIF_PROC_UMOUNTED
+ * (susfs.c:1451-1457) from xfg_handle_extra_susfs_work()
+ * (XiaoFeng/10_enable_susfs_for_xfg.patch:1599-1607) as zygote marks an app TIF_PROC_UMOUNTED
  * (patch:1669, patch:1719), and entries are never removed, so every spawn retries all of them.
  * Semantics: "registered now, hidden as soon as the path shows up", no attempt limit, the trigger
  * is an event.
@@ -785,7 +785,7 @@ static void sus_path_pending_work(struct work_struct *w)
  * /proc/self/root/...; unlink/rename operate on the PARENT's inode, hence the name-based hooks.
  * ------------------------------------------------------------------------- */
 
-/* Every replacement in this file is registered with KSU_LSM_HOOK_INSERT and can only
+/* Every replacement in this file is registered with XFG_LSM_HOOK_INSERT and can only
  * ADD a denial - it can never suppress another LSM.
  *
  * Below 6.12 that is literally an insertion: each replacement owns a struct security_hook_list
@@ -796,7 +796,7 @@ static void sus_path_pending_work(struct work_struct *w)
  * the caller gets.
  *
  * From 6.12 there is no hook list left to insert into, because the members are static calls:
- * ksu_lsm_hook_insert_scall() takes over SELinux's own slot for that member instead and keeps the
+ * xfg_lsm_hook_insert_scall() takes over SELinux's own slot for that member instead and keeps the
  * function it displaced in `hook.original`.  There `return 0` no longer reaches SELinux's decision
  * - the displaced function is not in the chain any more - so it has to be run explicitly, on the
  * not-hidden path and only there: that is SUS_LSM_PASS_ORIG below, whose NULL check is what keeps
@@ -821,7 +821,7 @@ static int sus_path_inode_permission(struct inode *inode, int mask);
 		LSM_HOOK_FN_TYPE(member) __susfs_orig;				\
 		/* Load-load fence before the read.  The switch that sent this call		\
 		 * here is a plain store of key->func (the publish order in			\
-		 * ksu_lsm_hook_insert_scall()), and on a weakly ordered CPU the load	\
+		 * xfg_lsm_hook_insert_scall()), and on a weakly ordered CPU the load	\
 		 * of original may be satisfied before the load of key->func that			\
 		 * preceded it - which is how this reads NULL on an armed hook and drops	\
 		 * SELinux's decision for that call.  The writer-side smp_wmb() closes	\
@@ -876,17 +876,17 @@ static_assert(__builtin_types_compatible_p(LSM_HOOK_FN_TYPE(inode_link),
 					   typeof(&sus_path_inode_link)),
 	      "inode_link hook signature mismatch");
 
-static struct ksu_lsm_hook sus_path_unlink_hook =
-	KSU_LSM_HOOK_INSERT(inode_unlink, (void *)sus_path_inode_unlink);
+static struct xfg_lsm_hook sus_path_unlink_hook =
+	XFG_LSM_HOOK_INSERT(inode_unlink, (void *)sus_path_inode_unlink);
 
-static struct ksu_lsm_hook sus_path_rmdir_hook =
-	KSU_LSM_HOOK_INSERT(inode_rmdir, (void *)sus_path_inode_rmdir);
+static struct xfg_lsm_hook sus_path_rmdir_hook =
+	XFG_LSM_HOOK_INSERT(inode_rmdir, (void *)sus_path_inode_rmdir);
 
-static struct ksu_lsm_hook sus_path_rename_hook =
-	KSU_LSM_HOOK_INSERT(inode_rename, (void *)sus_path_inode_rename);
+static struct xfg_lsm_hook sus_path_rename_hook =
+	XFG_LSM_HOOK_INSERT(inode_rename, (void *)sus_path_inode_rename);
 
-static struct ksu_lsm_hook sus_path_link_hook =
-	KSU_LSM_HOOK_INSERT(inode_link, (void *)sus_path_inode_link);
+static struct xfg_lsm_hook sus_path_link_hook =
+	XFG_LSM_HOOK_INSERT(inode_link, (void *)sus_path_inode_link);
 
 /* ---- metadata and attribute operations ----
  *
@@ -1071,32 +1071,32 @@ static_assert(__builtin_types_compatible_p(LSM_HOOK_FN_TYPE(path_notify),
 					   typeof(&sus_path_path_notify)),
 	      "path_notify hook signature mismatch");
 
-static struct ksu_lsm_hook sus_path_statfs_hook =
-	KSU_LSM_HOOK_INSERT(sb_statfs, (void *)sus_path_sb_statfs);
+static struct xfg_lsm_hook sus_path_statfs_hook =
+	XFG_LSM_HOOK_INSERT(sb_statfs, (void *)sus_path_sb_statfs);
 
-static struct ksu_lsm_hook sus_path_setattr_hook =
-	KSU_LSM_HOOK_INSERT(inode_setattr, (void *)sus_path_inode_setattr);
+static struct xfg_lsm_hook sus_path_setattr_hook =
+	XFG_LSM_HOOK_INSERT(inode_setattr, (void *)sus_path_inode_setattr);
 
-static struct ksu_lsm_hook sus_path_getxattr_hook =
-	KSU_LSM_HOOK_INSERT(inode_getxattr, (void *)sus_path_inode_getxattr);
+static struct xfg_lsm_hook sus_path_getxattr_hook =
+	XFG_LSM_HOOK_INSERT(inode_getxattr, (void *)sus_path_inode_getxattr);
 
-static struct ksu_lsm_hook sus_path_listxattr_hook =
-	KSU_LSM_HOOK_INSERT(inode_listxattr, (void *)sus_path_inode_listxattr);
+static struct xfg_lsm_hook sus_path_listxattr_hook =
+	XFG_LSM_HOOK_INSERT(inode_listxattr, (void *)sus_path_inode_listxattr);
 
-static struct ksu_lsm_hook sus_path_setxattr_hook =
-	KSU_LSM_HOOK_INSERT(inode_setxattr, (void *)sus_path_inode_setxattr);
+static struct xfg_lsm_hook sus_path_setxattr_hook =
+	XFG_LSM_HOOK_INSERT(inode_setxattr, (void *)sus_path_inode_setxattr);
 
-static struct ksu_lsm_hook sus_path_removexattr_hook =
-	KSU_LSM_HOOK_INSERT(inode_removexattr, (void *)sus_path_inode_removexattr);
+static struct xfg_lsm_hook sus_path_removexattr_hook =
+	XFG_LSM_HOOK_INSERT(inode_removexattr, (void *)sus_path_inode_removexattr);
 
-static struct ksu_lsm_hook sus_path_notify_hook =
-	KSU_LSM_HOOK_INSERT(path_notify, (void *)sus_path_path_notify);
+static struct xfg_lsm_hook sus_path_notify_hook =
+	XFG_LSM_HOOK_INSERT(path_notify, (void *)sus_path_path_notify);
 
-static struct ksu_lsm_hook sus_path_getattr_hook =
-	KSU_LSM_HOOK_INSERT(inode_getattr, (void *)sus_path_inode_getattr);
+static struct xfg_lsm_hook sus_path_getattr_hook =
+	XFG_LSM_HOOK_INSERT(inode_getattr, (void *)sus_path_inode_getattr);
 
-static struct ksu_lsm_hook sus_path_perm_hook =
-	KSU_LSM_HOOK_INSERT(inode_permission, (void *)sus_path_inode_permission);
+static struct xfg_lsm_hook sus_path_perm_hook =
+	XFG_LSM_HOOK_INSERT(inode_permission, (void *)sus_path_inode_permission);
 
 static atomic_t n_enoent_getattr = ATOMIC_INIT(0);
 static atomic_t n_enoent_perm = ATOMIC_INIT(0);
@@ -2025,7 +2025,7 @@ int sus_path_del_path(const char *path)
  * this, rules could only be removed by unloading the module, so one mistyped `add_sus_path /data`
  * hid that path machine-wide - and left the target's mode relaxed (sus_path_relax_mode()) for just
  * as long.  Deliberately NOT a new CMD_SUSFS_* command: this node is ours, while the supercall
- * command space has to stay compatible with KernelSU/ksud.
+ * command space has to stay compatible with XiaoFeng/xfgd.
  *
  *   echo clear        > .../hide_list     all rules
  *   echo "del /path"  > .../hide_list     one rule (exact path, trailing / ignored)
@@ -2588,7 +2588,7 @@ int sus_path_init(void)
      * mechanism - a registered path is hidden only because this layer answers ENOENT.  A failure
      * here used to be a warning with a zero return, so add_sus_path() reported success while
      * nothing was hidden; loading now fails instead. */
-    rc = ksu_register_lsm_hook(&sus_path_getattr_hook);
+    rc = xfg_register_lsm_hook(&sus_path_getattr_hook);
     if (rc) {
         pr_err("sus_path: getattr hook failed %d - nothing would be hidden, refusing to load\n", rc);
         /* The scratch buffer is already allocated; the caller is about to fail the load, and a
@@ -2600,10 +2600,10 @@ int sus_path_init(void)
     SUSFS_LOGI("sus_path: getattr hook inserted ahead of the chain (node %px)\n",
             (void *)sus_path_getattr_hook.entry);
 
-    rc = ksu_register_lsm_hook(&sus_path_perm_hook);
+    rc = xfg_register_lsm_hook(&sus_path_perm_hook);
     if (rc) {
         pr_err("sus_path: perm hook failed %d - nothing would be hidden, refusing to load\n", rc);
-        ksu_unregister_lsm_hook(&sus_path_getattr_hook);
+        xfg_unregister_lsm_hook(&sus_path_getattr_hook);
         kvfree(dirent_tmp);
         dirent_tmp = NULL;
         return rc;
@@ -2615,7 +2615,7 @@ int sus_path_init(void)
      * can delete or rename a hidden file, and a hidden file can still be probed or modified through
      * statfs/xattr/inotify - or answered with EPERM/EACCES, which says it exists. */
     {
-        struct ksu_lsm_hook *extra[] = {
+        struct xfg_lsm_hook *extra[] = {
             &sus_path_unlink_hook, &sus_path_rmdir_hook,
             &sus_path_rename_hook, &sus_path_link_hook,
             &sus_path_statfs_hook, &sus_path_setattr_hook,
@@ -2626,7 +2626,7 @@ int sus_path_init(void)
         int i;
 
         for (i = 0; i < (int)ARRAY_SIZE(extra); i++) {
-            rc = ksu_register_lsm_hook(extra[i]);
+            rc = xfg_register_lsm_hook(extra[i]);
             if (rc) {
                 /* Not fatal - the core two hooks are up, so a hidden path is still hidden -
                  * but one class of operation is NOT covered, so it is counted and named in
@@ -2724,9 +2724,9 @@ void sus_path_exit(void)
     /* No walk can be in flight now, so the borrowed creds are ours to release. */
     sus_path_drop_caller_cred();
     if (sus_path_perm_hook.entry)
-        ksu_unregister_lsm_hook(&sus_path_perm_hook);
+        xfg_unregister_lsm_hook(&sus_path_perm_hook);
     {
-        struct ksu_lsm_hook *extra[] = {
+        struct xfg_lsm_hook *extra[] = {
             &sus_path_unlink_hook, &sus_path_rmdir_hook,
             &sus_path_rename_hook, &sus_path_link_hook,
             &sus_path_statfs_hook, &sus_path_setattr_hook,
@@ -2738,11 +2738,11 @@ void sus_path_exit(void)
 
         for (i = 0; i < (int)ARRAY_SIZE(extra); i++) {
             if (extra[i]->entry)
-                ksu_unregister_lsm_hook(extra[i]);
+                xfg_unregister_lsm_hook(extra[i]);
         }
     }
     if (sus_path_getattr_hook.entry)
-        ksu_unregister_lsm_hook(&sus_path_getattr_hook);
+        xfg_unregister_lsm_hook(&sus_path_getattr_hook);
 
     kvfree(dirent_tmp);
     dirent_tmp = NULL;

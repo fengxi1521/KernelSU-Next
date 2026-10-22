@@ -1,7 +1,7 @@
 use crate::module::{ScriptWait, handle_updated_modules, prune_modules};
 use crate::utils::is_safe_mode;
 use crate::{
-    assets, defs, ksucalls, metamodule, restorecon,
+    assets, defs, xfgcalls, metamodule, restorecon,
     utils::{self},
 };
 use anyhow::{Context, Result};
@@ -9,12 +9,12 @@ use log::{error, info, warn};
 use std::{path::Path, time::Instant};
 
 pub fn on_post_fs_data() -> Result<()> {
-    if let Err(e) = ksucalls::ensure_uapi_version_matched() {
+    if let Err(e) = xfgcalls::ensure_uapi_version_matched() {
         error!("{e:#}, skip on_post_fs_data");
         return Ok(());
     }
 
-    ksucalls::report_post_fs_data();
+    xfgcalls::report_post_fs_data();
 
     utils::umask(0);
 
@@ -72,9 +72,9 @@ pub fn on_post_fs_data() -> Result<()> {
         warn!("prune modules failed: {e}");
     }
 
-    // Refresh /metadata/watchdog/ksu/{modules.rc,preinit/} so the next boot's kernel hook sees the
+    // Refresh /metadata/watchdog/xfg/{modules.rc,preinit/} so the next boot's kernel hook sees the
     // current module set. Acts as a safety net when state was changed outside
-    // of ksud's normal mutation commands.
+    // of xfgd's normal mutation commands.
     if let Err(e) = crate::module::regenerate_preinit() {
         warn!("regenerate preinit failed: {e:#}");
     }
@@ -157,12 +157,12 @@ pub fn run_stage(stage: &str, wait: ScriptWait) {
 }
 
 pub fn on_services() {
-    if let Err(e) = ksucalls::ensure_uapi_version_matched() {
+    if let Err(e) = xfgcalls::ensure_uapi_version_matched() {
         error!("{e:#}, skip on_services");
         return;
     }
 
-    match ksucalls::report_services() {
+    match xfgcalls::report_services() {
         Ok(true) => {}
         Ok(false) => {
             info!("services already started, skipping");
@@ -179,12 +179,12 @@ pub fn on_services() {
 }
 
 pub fn on_boot_completed() {
-    if let Err(e) = ksucalls::ensure_uapi_version_matched() {
+    if let Err(e) = xfgcalls::ensure_uapi_version_matched() {
         error!("{e:#}, skip on_boot_completed");
         return;
     }
 
-    ksucalls::report_boot_complete();
+    xfgcalls::report_boot_complete();
     info!("on_boot_completed triggered!");
 
     crate::preinit::on_boot_completed();

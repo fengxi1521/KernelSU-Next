@@ -1,5 +1,5 @@
-#ifndef __KSU_H_ARCH
-#define __KSU_H_ARCH
+#ifndef __XFG_H_ARCH
+#define __XFG_H_ARCH
 
 #include <linux/version.h>
 

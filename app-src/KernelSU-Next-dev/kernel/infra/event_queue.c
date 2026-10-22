@@ -11,18 +11,18 @@
 
 #include "infra/event_queue.h"
 
-struct ksu_event_queue_node {
+struct xfg_event_queue_node {
     struct list_head list;
-    struct ksu_event_record_hdr hdr;
+    struct xfg_event_record_hdr hdr;
     __u8 payload[];
 };
 
-static size_t ksu_event_queue_record_size(__u32 payload_len)
+static size_t xfg_event_queue_record_size(__u32 payload_len)
 {
-    return sizeof(struct ksu_event_record_hdr) + payload_len;
+    return sizeof(struct xfg_event_record_hdr) + payload_len;
 }
 
-static void ksu_event_queue_note_drop_locked(struct ksu_event_queue *queue, __u64 seq)
+static void xfg_event_queue_note_drop_locked(struct xfg_event_queue *queue, __u64 seq)
 {
     queue->dropped_total++;
     if (!queue->dropped_pending) {
@@ -32,12 +32,12 @@ static void ksu_event_queue_note_drop_locked(struct ksu_event_queue *queue, __u6
     queue->dropped_last_seq = seq;
 }
 
-static bool ksu_event_queue_has_data_locked(const struct ksu_event_queue *queue)
+static bool xfg_event_queue_has_data_locked(const struct xfg_event_queue *queue)
 {
     return queue->dropped_pending || queue->dropped_inflight || !list_empty(&queue->pending);
 }
 
-static void ksu_event_queue_mark_closed(struct ksu_event_queue *queue)
+static void xfg_event_queue_mark_closed(struct xfg_event_queue *queue)
 {
     unsigned long irq_flags;
 
@@ -46,7 +46,7 @@ static void ksu_event_queue_mark_closed(struct ksu_event_queue *queue)
     spin_unlock_irqrestore(&queue->lock, irq_flags);
 }
 
-void ksu_event_queue_init(struct ksu_event_queue *queue, __u32 max_queued, __u32 max_payload_len)
+void xfg_event_queue_init(struct xfg_event_queue *queue, __u32 max_queued, __u32 max_payload_len)
 {
     spin_lock_init(&queue->lock);
     mutex_init(&queue->read_lock);
@@ -66,12 +66,12 @@ void ksu_event_queue_init(struct ksu_event_queue *queue, __u32 max_queued, __u32
     queue->closed = false;
 }
 
-void ksu_event_queue_destroy(struct ksu_event_queue *queue)
+void xfg_event_queue_destroy(struct xfg_event_queue *queue)
 {
-    struct ksu_event_queue_node *node, *tmp;
+    struct xfg_event_queue_node *node, *tmp;
     unsigned long irq_flags;
 
-    ksu_event_queue_mark_closed(queue);
+    xfg_event_queue_mark_closed(queue);
     wake_up_interruptible_poll(&queue->read_wait, EPOLLHUP | POLLHUP);
 
     mutex_lock(&queue->read_lock);
@@ -93,10 +93,10 @@ void ksu_event_queue_destroy(struct ksu_event_queue *queue)
     wake_up_interruptible_poll(&queue->read_wait, EPOLLHUP | POLLHUP);
 }
 
-int ksu_event_queue_push(struct ksu_event_queue *queue, __u16 type, __u16 flags, const void *payload, __u32 len,
+int xfg_event_queue_push(struct xfg_event_queue *queue, __u16 type, __u16 flags, const void *payload, __u32 len,
                          gfp_t gfp)
 {
-    struct ksu_event_queue_node *node = NULL;
+    struct xfg_event_queue_node *node = NULL;
     unsigned long irq_flags;
     __u64 seq;
     bool wake = false;
@@ -133,7 +133,7 @@ int ksu_event_queue_push(struct ksu_event_queue *queue, __u16 type, __u16 flags,
 
     seq = queue->next_seq++;
     if (!node || (queue->max_queued && queue->queued >= queue->max_queued)) {
-        ksu_event_queue_note_drop_locked(queue, seq);
+        xfg_event_queue_note_drop_locked(queue, seq);
         wake = true;
         ret = node ? -ENOSPC : -ENOMEM;
         goto out_unlock;
@@ -159,7 +159,7 @@ out_unlock:
     return ret;
 }
 
-void ksu_event_queue_drop(struct ksu_event_queue *queue)
+void xfg_event_queue_drop(struct xfg_event_queue *queue)
 {
     unsigned long irq_flags;
     __u64 seq;
@@ -171,18 +171,18 @@ void ksu_event_queue_drop(struct ksu_event_queue *queue)
     }
 
     seq = queue->next_seq++;
-    ksu_event_queue_note_drop_locked(queue, seq);
+    xfg_event_queue_note_drop_locked(queue, seq);
     spin_unlock_irqrestore(&queue->lock, irq_flags);
 
     wake_up_interruptible_poll(&queue->read_wait, EPOLLIN | EPOLLRDNORM);
 }
 
-static int ksu_event_queue_wait_ready(struct ksu_event_queue *queue, int file_flags)
+static int xfg_event_queue_wait_ready(struct xfg_event_queue *queue, int file_flags)
 {
     int ret;
 
     for (;;) {
-        if (ksu_event_queue_has_data(queue)) {
+        if (xfg_event_queue_has_data(queue)) {
             return 0;
         }
 
@@ -194,18 +194,18 @@ static int ksu_event_queue_wait_ready(struct ksu_event_queue *queue, int file_fl
             return -EAGAIN;
         }
 
-        ret = wait_event_interruptible(queue->read_wait, queue->closed || ksu_event_queue_has_data(queue));
+        ret = wait_event_interruptible(queue->read_wait, queue->closed || xfg_event_queue_has_data(queue));
         if (ret) {
             return ret;
         }
     }
 }
 
-static ssize_t ksu_event_queue_read_drop(struct ksu_event_queue *queue, char __user *buf, size_t count)
+static ssize_t xfg_event_queue_read_drop(struct xfg_event_queue *queue, char __user *buf, size_t count)
 {
-    struct ksu_event_record_hdr hdr;
-    struct ksu_event_queue_dropped_info info;
-    size_t record_size = ksu_event_queue_record_size(sizeof(info));
+    struct xfg_event_record_hdr hdr;
+    struct xfg_event_queue_dropped_info info;
+    size_t record_size = xfg_event_queue_record_size(sizeof(info));
     unsigned long irq_flags;
 
     spin_lock_irqsave(&queue->lock, irq_flags);
@@ -218,8 +218,8 @@ static ssize_t ksu_event_queue_read_drop(struct ksu_event_queue *queue, char __u
         return -EMSGSIZE;
     }
 
-    hdr.type = KSU_EVENT_QUEUE_TYPE_DROPPED;
-    hdr.flags = KSU_EVENT_RECORD_FLAG_INTERNAL;
+    hdr.type = XFG_EVENT_QUEUE_TYPE_DROPPED;
+    hdr.flags = XFG_EVENT_RECORD_FLAG_INTERNAL;
     hdr.len = sizeof(info);
     hdr.seq = queue->dropped_first_seq;
     hdr.ts_ns = ktime_get_ns();
@@ -270,9 +270,9 @@ out_restore:
     return -EFAULT;
 }
 
-static ssize_t ksu_event_queue_read_node(struct ksu_event_queue *queue, char __user *buf, size_t count)
+static ssize_t xfg_event_queue_read_node(struct xfg_event_queue *queue, char __user *buf, size_t count)
 {
-    struct ksu_event_queue_node *node;
+    struct xfg_event_queue_node *node;
     struct list_head *first;
     size_t record_size;
     unsigned long irq_flags;
@@ -284,8 +284,8 @@ static ssize_t ksu_event_queue_read_node(struct ksu_event_queue *queue, char __u
     }
 
     first = queue->pending.next;
-    node = list_entry(first, struct ksu_event_queue_node, list);
-    record_size = ksu_event_queue_record_size(node->hdr.len);
+    node = list_entry(first, struct xfg_event_queue_node, list);
+    record_size = xfg_event_queue_record_size(node->hdr.len);
     if (count < record_size) {
         spin_unlock_irqrestore(&queue->lock, irq_flags);
         return -EMSGSIZE;
@@ -309,7 +309,7 @@ static ssize_t ksu_event_queue_read_node(struct ksu_event_queue *queue, char __u
     return record_size;
 }
 
-ssize_t ksu_event_queue_read(struct ksu_event_queue *queue, char __user *buf, size_t count, int file_flags)
+ssize_t xfg_event_queue_read(struct xfg_event_queue *queue, char __user *buf, size_t count, int file_flags)
 {
     ssize_t ret;
     ssize_t copied = 0;
@@ -323,14 +323,14 @@ ssize_t ksu_event_queue_read(struct ksu_event_queue *queue, char __user *buf, si
         return ret;
     }
 
-    ret = ksu_event_queue_wait_ready(queue, file_flags);
+    ret = xfg_event_queue_wait_ready(queue, file_flags);
     if (ret) {
         copied = ret;
         goto out_unlock;
     }
 
     while (count > 0) {
-        ret = ksu_event_queue_read_drop(queue, buf, count);
+        ret = xfg_event_queue_read_drop(queue, buf, count);
         if (ret < 0) {
             if (!copied) {
                 copied = ret;
@@ -344,7 +344,7 @@ ssize_t ksu_event_queue_read(struct ksu_event_queue *queue, char __user *buf, si
             continue;
         }
 
-        ret = ksu_event_queue_read_node(queue, buf, count);
+        ret = xfg_event_queue_read_node(queue, buf, count);
         if (ret < 0) {
             if (!copied) {
                 copied = ret;
@@ -369,7 +369,7 @@ out_unlock:
     return copied;
 }
 
-__poll_t ksu_event_queue_poll(struct ksu_event_queue *queue, struct file *file, poll_table *wait)
+__poll_t xfg_event_queue_poll(struct xfg_event_queue *queue, struct file *file, poll_table *wait)
 {
     __poll_t mask = 0;
     unsigned long irq_flags;
@@ -377,7 +377,7 @@ __poll_t ksu_event_queue_poll(struct ksu_event_queue *queue, struct file *file, 
     poll_wait(file, &queue->read_wait, wait);
 
     spin_lock_irqsave(&queue->lock, irq_flags);
-    if (ksu_event_queue_has_data_locked(queue)) {
+    if (xfg_event_queue_has_data_locked(queue)) {
         mask |= POLLIN | POLLRDNORM;
     }
     if (queue->closed) {
@@ -388,19 +388,19 @@ __poll_t ksu_event_queue_poll(struct ksu_event_queue *queue, struct file *file, 
     return mask;
 }
 
-void ksu_event_queue_close(struct ksu_event_queue *queue)
+void xfg_event_queue_close(struct xfg_event_queue *queue)
 {
-    ksu_event_queue_mark_closed(queue);
+    xfg_event_queue_mark_closed(queue);
     wake_up_interruptible_poll(&queue->read_wait, EPOLLHUP | POLLHUP);
 }
 
-bool ksu_event_queue_has_data(struct ksu_event_queue *queue)
+bool xfg_event_queue_has_data(struct xfg_event_queue *queue)
 {
     bool has_data;
     unsigned long irq_flags;
 
     spin_lock_irqsave(&queue->lock, irq_flags);
-    has_data = ksu_event_queue_has_data_locked(queue);
+    has_data = xfg_event_queue_has_data_locked(queue);
     spin_unlock_irqrestore(&queue->lock, irq_flags);
 
     return has_data;

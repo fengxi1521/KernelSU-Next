@@ -1,27 +1,27 @@
-#ifndef __KSU_H_KSU
-#define __KSU_H_KSU
+#ifndef __XFG_H_XFG
+#define __XFG_H_XFG
 
 #include <linux/types.h>
 #include <linux/cred.h>
 #include <linux/workqueue.h>
 
-#define KERNEL_SU_VERSION KSU_VERSION
-#define KERNEL_SU_VERSION_TAG KSU_VERSION_TAG
+#define KERNEL_SU_VERSION XFG_VERSION
+#define KERNEL_SU_VERSION_TAG XFG_VERSION_TAG
 
-extern struct cred *ksu_cred;
-extern bool ksu_late_loaded;
+extern struct cred *xfg_cred;
+extern bool xfg_late_loaded;
 extern bool allow_shell;
 #ifdef MODULE
-extern bool ksu_bundled;
+extern bool xfg_bundled;
 #endif
 extern struct selinux_policy *backup_sepolicy;
-extern bool ksu_no_custom_rc;
+extern bool xfg_no_custom_rc;
 
 #ifdef CONFIG_ANDROID
 #include <linux/security.h>
-#define ksu_security_secctx_to_secid security_secctx_to_secid
+#define xfg_security_secctx_to_secid security_secctx_to_secid
 #else
-int ksu_security_secctx_to_secid(const char *secdata, u32 seclen, u32 *secid);
+int xfg_security_secctx_to_secid(const char *secdata, u32 seclen, u32 *secid);
 #endif
 
 static inline int startswith(char *s, char *prefix)

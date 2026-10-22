@@ -1,4 +1,4 @@
-#include "ksu.h"
+#include "xfg.h"
 #include "linux/cred.h"
 #include "linux/namei.h"
 #include "util.h"
@@ -18,7 +18,7 @@
 
 static DEFINE_MUTEX(throne_tracker_mutex);
 
-uid_t ksu_manager_appid = KSU_INVALID_APPID;
+uid_t xfg_manager_appid = XFG_INVALID_APPID;
 
 #define DATA_PATH_LEN 384 // 384 is enough for /data/app/<package>/base.apk
 
@@ -29,7 +29,7 @@ static char cached_manager_apk_path[DATA_PATH_LEN];
 struct uid_data {
 	struct list_head list;
 	u32 uid;
-	char package[KSU_MAX_PACKAGE_NAME];
+	char package[XFG_MAX_PACKAGE_NAME];
 };
 
 static void crown_manager(const char *apk, struct list_head *uid_data)
@@ -38,10 +38,10 @@ static void crown_manager(const char *apk, struct list_head *uid_data)
 	struct uid_data *np;
 	const char *target_pkg;
 
-#ifdef KSU_MANAGER_PACKAGE
-	target_pkg = KSU_MANAGER_PACKAGE;
+#ifdef XFG_MANAGER_PACKAGE
+	target_pkg = XFG_MANAGER_PACKAGE;
 #else
-	char pkg[KSU_MAX_PACKAGE_NAME];
+	char pkg[XFG_MAX_PACKAGE_NAME];
 	char dir_path[DATA_PATH_LEN];
 	char *last_slash;
 
@@ -59,9 +59,9 @@ static void crown_manager(const char *apk, struct list_head *uid_data)
 #endif
 
 	list_for_each_entry (np, list, list) {
-		if (strncmp(np->package, target_pkg, KSU_MAX_PACKAGE_NAME) == 0) {
+		if (strncmp(np->package, target_pkg, XFG_MAX_PACKAGE_NAME) == 0) {
 			pr_info("Crowning manager: %s(uid=%d)\n", target_pkg, np->uid);
-			ksu_set_manager_appid(np->uid);
+			xfg_set_manager_appid(np->uid);
 			break;
 		}
 	}
@@ -94,16 +94,16 @@ struct my_dir_context {
 
 static bool maybe_manager_apk_dir(const char *path)
 {
-#ifdef KSU_MANAGER_PACKAGE
-	_Static_assert(sizeof(KSU_MANAGER_PACKAGE) < KSU_MAX_PACKAGE_NAME, "KSU_MANAGER_PACKAGE too long!");
-	char pkg[KSU_MAX_PACKAGE_NAME];
+#ifdef XFG_MANAGER_PACKAGE
+	_Static_assert(sizeof(XFG_MANAGER_PACKAGE) < XFG_MAX_PACKAGE_NAME, "XFG_MANAGER_PACKAGE too long!");
+	char pkg[XFG_MAX_PACKAGE_NAME];
 	if (get_pkg_from_apk_dir_path(pkg, path) < 0) {
 		pr_err("Failed to get package name from apk dir path: %s\n", path);
 		return false;
 	}
 
 	// pkg is `<real package>`
-	return strncmp(pkg, KSU_MANAGER_PACKAGE, sizeof(KSU_MANAGER_PACKAGE)) == 0;
+	return strncmp(pkg, XFG_MANAGER_PACKAGE, sizeof(XFG_MANAGER_PACKAGE)) == 0;
 #else
 	return true;
 #endif
@@ -190,7 +190,7 @@ static void search_manager(const char *path, int depth, struct list_head *uid_da
 										.parent_dir = pos->dirpath,
 										.private_data = candidate_path,
 										.depth = pos->depth };
-			struct file *file = ksu_filp_open_nonotify(pos->dirpath, O_RDONLY | O_NOFOLLOW | O_NOATIME | O_DIRECTORY);
+			struct file *file = xfg_filp_open_nonotify(pos->dirpath, O_RDONLY | O_NOFOLLOW | O_NOATIME | O_DIRECTORY);
 			if (IS_ERR(file)) {
 				pr_err("Failed to open directory: %s, err: %ld\n", pos->dirpath, PTR_ERR(file));
 				goto skip_iterate;
@@ -248,7 +248,7 @@ static bool is_uid_exist(uid_t uid, char *package, void *data)
 	bool exist = false;
 	list_for_each_entry (np, list, list) {
 		if (np->uid == uid % PER_USER_RANGE &&
-			strncmp(np->package, package, KSU_MAX_PACKAGE_NAME) == 0) {
+			strncmp(np->package, package, XFG_MAX_PACKAGE_NAME) == 0) {
 			exist = true;
 			break;
 		}
@@ -259,7 +259,7 @@ static bool is_uid_exist(uid_t uid, char *package, void *data)
 void track_throne(bool prune_only)
 {
 	mutex_lock(&throne_tracker_mutex);
-	const struct cred *old_cred = override_creds(ksu_cred);
+	const struct cred *old_cred = override_creds(xfg_cred);
 	struct file *fp = filp_open(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
 	if (IS_ERR(fp)) {
 		pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %ld\n", __func__,
@@ -273,7 +273,7 @@ void track_throne(bool prune_only)
 	char chr = 0;
 	loff_t pos = 0;
 	loff_t line_start = 0;
-	char buf[KSU_MAX_PACKAGE_NAME];
+	char buf[XFG_MAX_PACKAGE_NAME];
 	for (;;) {
 		ssize_t count = kernel_read(fp, &chr, sizeof(chr), &pos);
 		if (count != sizeof(chr))
@@ -325,41 +325,41 @@ void track_throne(bool prune_only)
 		goto prune;
 
 	// first, check if manager_uid exist!
-	uid_t manager_package_uid = KSU_INVALID_APPID;
+	uid_t manager_package_uid = XFG_INVALID_APPID;
 	bool need_rescan = false;
 	list_for_each_entry (np, &uid_list, list) {
-#ifdef KSU_MANAGER_PACKAGE
-		if (strcmp(np->package, KSU_MANAGER_PACKAGE) == 0) {
+#ifdef XFG_MANAGER_PACKAGE
+		if (strcmp(np->package, XFG_MANAGER_PACKAGE) == 0) {
 			manager_package_uid = np->uid;
 			break;
 		}
 #else
-		if (np->uid == ksu_get_manager_appid()) {
+		if (np->uid == xfg_get_manager_appid()) {
 			manager_package_uid = np->uid;
 			break;
 		}
 #endif
 	}
 
-	if (manager_package_uid == KSU_INVALID_APPID) {
+	if (manager_package_uid == XFG_INVALID_APPID) {
 		cached_manager_apk_path[0] = 0;
-		if (ksu_is_manager_appid_valid()) {
+		if (xfg_is_manager_appid_valid()) {
 			pr_info("manager is uninstalled, invalidate it!\n");
-			ksu_invalidate_manager_uid();
+			xfg_invalidate_manager_uid();
 			goto prune;
 		}
-#ifndef KSU_MANAGER_PACKAGE
+#ifndef XFG_MANAGER_PACKAGE
 		// Unpinned: package name unknown; rescan to find it
 		need_rescan = true;
 #endif
 	} else {
-		if (!ksu_is_manager_appid_valid()) {
+		if (!xfg_is_manager_appid_valid()) {
 			need_rescan = true;
-		} else if (unlikely(np->uid != ksu_get_manager_appid())) {
+		} else if (unlikely(np->uid != xfg_get_manager_appid())) {
 			// this should not happen in normal android system
 			pr_info("manager uid changed, invalidate it!\n");
 			cached_manager_apk_path[0] = 0;
-			ksu_invalidate_manager_uid();
+			xfg_invalidate_manager_uid();
 			need_rescan = true;
 		} else {
 			// uid unchanged, skip
@@ -381,8 +381,8 @@ void track_throne(bool prune_only)
 				pr_err("stat cached manager path failed: %d (path=%s)\n", ret, cached_manager_apk_path);
 			}
 		}
-#ifdef KSU_MANAGER_PACKAGE
-		pr_info("Searching manager " KSU_MANAGER_PACKAGE "...\n");
+#ifdef XFG_MANAGER_PACKAGE
+		pr_info("Searching manager " XFG_MANAGER_PACKAGE "...\n");
 #else
 		pr_info("Searching manager...\n");
 #endif
@@ -392,7 +392,7 @@ void track_throne(bool prune_only)
 
 prune:
 	// then prune the allowlist
-	ksu_prune_allowlist(is_uid_exist, &uid_list);
+	xfg_prune_allowlist(is_uid_exist, &uid_list);
 out:
 	// free uid_list
 	list_for_each_entry_safe (np, n, &uid_list, list) {
@@ -404,12 +404,12 @@ out_revert_cred:
 	mutex_unlock(&throne_tracker_mutex);
 }
 
-void __init ksu_throne_tracker_init()
+void __init xfg_throne_tracker_init()
 {
 	// nothing to do
 }
 
-void __exit ksu_throne_tracker_exit()
+void __exit xfg_throne_tracker_exit()
 {
 	// nothing to do
 }

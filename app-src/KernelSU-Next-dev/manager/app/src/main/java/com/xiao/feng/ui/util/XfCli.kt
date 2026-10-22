@@ -15,7 +15,7 @@ import android.util.Log
 import com.xiao.feng.BuildConfig
 import com.xiao.feng.Natives
 import com.xiao.feng.R
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.topjohnwu.superuser.CallbackList
 import com.topjohnwu.superuser.Shell
 import com.topjohnwu.superuser.ShellUtils
@@ -30,14 +30,14 @@ import java.util.*
 import java.util.zip.ZipFile
 
 /**
- * @author weishu
+ * @author XiaoFeng
  * @date 2023/1/1.
  */
 private const val TAG = "XfCli"
-private const val BUSYBOX = "/data/adb/ksu/bin/busybox"
+private const val BUSYBOX = "/data/adb/xfg/bin/busybox"
 
 private fun getXfDaemonPath(): String {
-    return ksuApp.applicationInfo.nativeLibraryDir + File.separator + "libksud.so"
+    return xfgApp.applicationInfo.nativeLibraryDir + File.separator + "libxfgd.so"
 }
 
 data class FlashResult(val code: Int, val err: String, val showReboot: Boolean) {
@@ -124,7 +124,7 @@ private suspend fun readFeatureValue(args: String): Long? = withContext(Dispatch
 
 fun install() {
     val start = SystemClock.elapsedRealtime()
-    val libadbroot = File(ksuApp.applicationInfo.nativeLibraryDir, "libxfadb.so").absolutePath
+    val libadbroot = File(xfgApp.applicationInfo.nativeLibraryDir, "libxfadb.so").absolutePath
     val result = execXfd("install --libadbroot $libadbroot", true)
     Log.w(TAG, "install result: $result, cost: ${SystemClock.elapsedRealtime() - start}ms")
 }
@@ -262,9 +262,9 @@ fun flashModule(
     onStdout: (String) -> Unit,
     onStderr: (String) -> Unit
 ): FlashResult {
-    val resolver = ksuApp.contentResolver
+    val resolver = xfgApp.contentResolver
     with(resolver.openInputStream(uri)) {
-        val file = File(ksuApp.cacheDir, "module.zip")
+        val file = File(xfgApp.cacheDir, "module.zip")
         file.outputStream().use { output ->
             this?.copyTo(output)
         }
@@ -351,11 +351,11 @@ fun installBoot(
     onStdout: (String) -> Unit,
     onStderr: (String) -> Unit,
 ): FlashResult {
-    val resolver = ksuApp.contentResolver
+    val resolver = xfgApp.contentResolver
 
     val bootFile = bootUri?.let { uri ->
         with(resolver.openInputStream(uri)) {
-            val bootFile = File(ksuApp.cacheDir, "boot.img")
+            val bootFile = File(xfgApp.cacheDir, "boot.img")
             bootFile.outputStream().use { output ->
                 this?.copyTo(output)
             }
@@ -389,7 +389,7 @@ fun installBoot(
     when (lkm) {
         is LkmSelection.LkmUri -> {
             lkmFile = with(resolver.openInputStream(lkm.uri)) {
-                val file = File(ksuApp.cacheDir, "xiaofeng-tmp-lkm.ko")
+                val file = File(xfgApp.cacheDir, "xiaofeng-tmp-lkm.ko")
                 file.outputStream().use { output ->
                     this?.copyTo(output)
                 }
@@ -425,7 +425,7 @@ fun installBoot(
 
 fun reboot(reason: String = "") {
     if (reason == "soft-reboot") {
-        // ksud (userspace)
+        // xfgd (userspace)
         com.xiao.feng.ui.util.execXfd("soft-reboot", true, true)
         return
     }
@@ -442,10 +442,10 @@ fun flashAnyKernelZip(
     onStdout: (String) -> Unit,
     onStderr: (String) -> Unit
 ): FlashResult {
-    val resolver = ksuApp.contentResolver
+    val resolver = xfgApp.contentResolver
 
     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-    val tmpFile = File(ksuApp.cacheDir, "anykernel_${timestamp}.zip")
+    val tmpFile = File(xfgApp.cacheDir, "anykernel_${timestamp}.zip")
     resolver.openInputStream(uri).use { input ->
         tmpFile.outputStream().use { out ->
             input?.copyTo(out)
@@ -454,7 +454,7 @@ fun flashAnyKernelZip(
 
     val destZip = tmpFile.absolutePath
     val destZipName = File(destZip).name
-    val destDirFile = File(ksuApp.cacheDir, "anykernel3_${timestamp}")
+    val destDirFile = File(xfgApp.cacheDir, "anykernel3_${timestamp}")
     val destDir = destDirFile.absolutePath
 
     // Validate that the zip contains the required META-INF installer script

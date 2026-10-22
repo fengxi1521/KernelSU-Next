@@ -9,11 +9,11 @@ use crate::boot_patch::{BootPatchArgs, BootRestoreArgs};
 use crate::lkm_image::BootPatchV2Args;
 use crate::module::regenerate_preinit;
 use crate::{
-    apk_sign, assets, debug, defs, init_event, ksu_uapi, ksucalls, module, module_config, sulog,
+    apk_sign, assets, debug, defs, init_event, xfg_uapi, xfgcalls, module, module_config, sulog,
     susfsd, utils, risk,
 };
 
-/// KernelSU Next userspace cli
+/// XiaoFeng userspace cli
 #[derive(Parser, Debug)]
 #[command(author, version = defs::FULL_VERSION, about, long_about = None)]
 struct Args {
@@ -23,7 +23,7 @@ struct Args {
 
 #[derive(clap::Subcommand, Debug)]
 enum Commands {
-    /// Manage KernelSU Next modules
+    /// Manage XiaoFeng modules
     Module {
         #[command(subcommand)]
         command: Module,
@@ -35,16 +35,16 @@ enum Commands {
     /// Trigger `service` event
     Services,
 
-    /// Run sulog reader daemon. Not for user. Use `ksud debug sulogd` to launch daemon.
+    /// Run sulog reader daemon. Not for user. Use `xfgd debug sulogd` to launch daemon.
     #[command(hide = true)]
     Sulogd,
 
     /// Trigger `boot-complete` event
     BootCompleted,
 
-    /// Load kernelsu.ko and execute late-load stage scripts
+    /// Load xiaofeng.ko and execute late-load stage scripts
     LateLoad {
-        /// Pass allow_shell=1 when loading kernelsu.ko
+        /// Pass allow_shell=1 when loading xiaofeng.ko
         #[arg(long)]
         allow_shell: bool,
 
@@ -53,7 +53,7 @@ enum Commands {
         kmi: Option<String>,
 
         /// manager package name
-        #[arg(long, default_value_t = String::from("com.rifsxd.ksunext"))]
+        #[arg(long, default_value_t = String::from("com.xiao.feng"))]
         package_name: String,
     },
 
@@ -66,18 +66,18 @@ enum Commands {
         params: Vec<String>,
     },
 
-    /// Install KernelSU Next userspace component to system
+    /// Install XiaoFeng userspace component to system
     Install {
         #[arg(long, default_value = None)]
         libadbroot: Option<PathBuf>,
     },
 
-    /// Unload KernelSU Next kernel module (LKM Only)
+    /// Unload XiaoFeng kernel module (LKM Only)
     Unload,
 
-    /// Uninstall KernelSU Next modules and itself(LKM Only)
+    /// Uninstall XiaoFeng modules and itself(LKM Only)
     Uninstall {
-        #[arg(long, default_value_t = String::from("com.rifsxd.ksunext"))]
+        #[arg(long, default_value_t = String::from("com.xiao.feng"))]
         package_name: String,
     },
 
@@ -99,13 +99,13 @@ enum Commands {
         command: Feature,
     },
 
-    /// Patch boot or init_boot images to apply KernelSU Next
+    /// Patch boot or init_boot images to apply XiaoFeng
     BootPatch(BootPatchArgs),
 
-    /// Restore boot or init_boot images patched by KernelSU
+    /// Restore boot or init_boot images patched by XiaoFeng
     BootRestore(BootRestoreArgs),
 
-    /// Patch KernelSU into a boot image
+    /// Patch XiaoFeng into a boot image
     ///
     /// Always operates on a boot image; never selects init_boot or vendor_boot.
     BootPatchV2(BootPatchV2Args),
@@ -140,7 +140,7 @@ enum Commands {
         command: Initrc,
     },
 
-    /// Emulate soft reboot (ksud; zygote)
+    /// Emulate soft reboot (xfgd; zygote)
     #[command(name = "soft-reboot")]
     SoftReboot,
 
@@ -178,10 +178,10 @@ enum BootInfo {
 
 #[derive(clap::Subcommand, Debug)]
 enum Debug {
-    /// Set the manager app, kernel CONFIG_KSU_DEBUG should be enabled.
+    /// Set the manager app, kernel CONFIG_XFG_DEBUG should be enabled.
     SetManager {
         /// manager package name
-        #[arg(default_value_t = String::from("com.rifsxd.ksunext"))]
+        #[arg(default_value_t = String::from("com.xiao.feng"))]
         apk: String,
     },
 
@@ -575,10 +575,10 @@ pub fn run() -> Result<()> {
     android_logger::init_once(
         Config::default()
             .with_max_level(crate::debug_select!(LevelFilter::Trace, LevelFilter::Info))
-            .with_tag("KernelSU Next"),
+            .with_tag("XiaoFeng"),
     );
 
-    ksucalls::setup_sigsys_handler();
+    xfgcalls::setup_sigsys_handler();
 
     // the kernel executes su with argv[0] = "su" and replace it with us
     let arg0 = std::env::args().next().unwrap_or_default();
@@ -628,7 +628,7 @@ pub fn run() -> Result<()> {
                 Module::Config { internal, command } => {
                     let module_id = match internal {
                         Some(internal_name) => format!("internal.{internal_name}"),
-                        None => std::env::var("KSU_MODULE").map_err(|_| {
+                        None => std::env::var("XFG_MODULE").map_err(|_| {
                             anyhow::anyhow!(
                                 "This command must be run in the context of a module or passed --internal <name>"
                             )
@@ -731,8 +731,8 @@ pub fn run() -> Result<()> {
             allow_shell,
         } => crate::late_load::run(&package_name, kmi, allow_shell),
         Commands::Services => {
-            if ksucalls::get_version() <= 0 {
-                info!("KernelSU Next not available, exiting services");
+            if xfgcalls::get_version() <= 0 {
+                info!("XiaoFeng not available, exiting services");
                 std::process::exit(0);
             }
             init_event::on_services();
@@ -778,7 +778,7 @@ pub fn run() -> Result<()> {
                 Ok(())
             }
             Debug::Version => {
-                println!("Kernel Version: {}", ksucalls::get_version());
+                println!("Kernel Version: {}", xfgcalls::get_version());
                 Ok(())
             }
             Debug::Su { global_mnt } => crate::su::grant_root(global_mnt),
@@ -795,21 +795,21 @@ pub fn run() -> Result<()> {
             },
             Debug::Sulogd => sulog::ensure_sulogd_running(),
             Debug::Info => {
-                let info = ksucalls::get_info();
+                let info = xfgcalls::get_info();
                 println!("version: {}", info.version);
                 println!("flags: 0x{:x}", info.flags);
                 println!("uapi_version: {}", info.uapi_version);
                 println!("features: 0x{:x}", info.features);
-                println!("lkm: {}", ksucalls::is_lkm());
+                println!("lkm: {}", xfgcalls::is_lkm());
                 println!(
                     "bundled: {}",
-                    (info.flags & ksu_uapi::KSU_GET_INFO_FLAG_BUNDLED) != 0
+                    (info.flags & xfg_uapi::XFG_GET_INFO_FLAG_BUNDLED) != 0
                 );
-                println!("late_load: {}", ksucalls::is_late_load());
-                println!("runtime_mode: {}", ksucalls::runtime_mode());
+                println!("late_load: {}", xfgcalls::is_late_load());
+                println!("runtime_mode: {}", xfgcalls::runtime_mode());
                 println!(
                     "pr_build: {}",
-                    (info.flags & ksu_uapi::KSU_GET_INFO_FLAG_PR_BUILD) != 0
+                    (info.flags & xfg_uapi::XFG_GET_INFO_FLAG_PR_BUILD) != 0
                 );
                 Ok(())
             }
@@ -888,14 +888,14 @@ pub fn run() -> Result<()> {
         },
 
         Commands::Kernel { command } => match command {
-            Kernel::NukeExt4Sysfs { mnt } => ksucalls::nuke_ext4_sysfs(&mnt),
+            Kernel::NukeExt4Sysfs { mnt } => xfgcalls::nuke_ext4_sysfs(&mnt),
             Kernel::Umount { command } => match command {
-                UmountOp::Add { mnt, flags } => ksucalls::umount_list_add(&mnt, flags),
-                UmountOp::Del { mnt } => ksucalls::umount_list_del(&mnt),
-                UmountOp::Wipe => ksucalls::umount_list_wipe(),
+                UmountOp::Add { mnt, flags } => xfgcalls::umount_list_add(&mnt, flags),
+                UmountOp::Del { mnt } => xfgcalls::umount_list_del(&mnt),
+                UmountOp::Wipe => xfgcalls::umount_list_wipe(),
             },
             Kernel::NotifyModuleMounted => {
-                ksucalls::report_module_mounted();
+                xfgcalls::report_module_mounted();
                 Ok(())
             }
         },

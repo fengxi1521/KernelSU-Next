@@ -12,16 +12,16 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
 
-use crate::{defs, ksucalls, module_config, utils};
+use crate::{defs, xfgcalls, module_config, utils};
 
-const KSU_EVENT_QUEUE_TYPE_DROPPED: u16 = u16::MAX;
-const KSU_EVENT_RECORD_FLAG_INTERNAL: u16 = 1;
+const XFG_EVENT_QUEUE_TYPE_DROPPED: u16 = u16::MAX;
+const XFG_EVENT_RECORD_FLAG_INTERNAL: u16 = 1;
 const TASK_COMM_LEN: usize = 16;
 const READ_BUF_SIZE: usize = 8192;
 const SULOGD_RESTART_DELAY: Duration = Duration::from_secs(3);
 const SULOG_DIR_MODE: u32 = 0o700;
 const SULOG_FILE_MODE: u32 = 0o600;
-pub const SULOG_CONFIG_MODULE_ID: &str = "internal.ksud.sulogd";
+pub const SULOG_CONFIG_MODULE_ID: &str = "internal.xfgd.sulogd";
 const SULOG_RETENTION_CONFIG_KEY: &str = "log.retention.days";
 const SULOG_MAX_FILE_SIZE_CONFIG_KEY: &str = "log.max_file_size";
 const DEFAULT_SULOG_RETENTION_DAYS: u64 = 3;
@@ -543,9 +543,9 @@ fn write_log_line(writer: &mut DailyLogWriter, line: &str) -> io::Result<()> {
 }
 
 fn format_record_line(header: EventRecordHeader, payload: &[u8]) -> Result<String> {
-    if header.record_type == KSU_EVENT_QUEUE_TYPE_DROPPED {
+    if header.record_type == XFG_EVENT_QUEUE_TYPE_DROPPED {
         ensure!(
-            header.flags & KSU_EVENT_RECORD_FLAG_INTERNAL != 0,
+            header.flags & XFG_EVENT_RECORD_FLAG_INTERNAL != 0,
             "dropped record missing internal flag"
         );
         let info = DroppedInfo::parse(payload)?;
@@ -632,7 +632,7 @@ fn handle_readable(fd: RawFd, writer: &mut DailyLogWriter) -> Result<ReadState> 
 }
 
 pub fn open_sulog_fd() -> Result<OwnedFd> {
-    let fd = ksucalls::get_sulog_fd()?;
+    let fd = xfgcalls::get_sulog_fd()?;
     let fd = unsafe { OwnedFd::from_raw_fd(fd) };
     let flags = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETFL) };
     if flags < 0 {

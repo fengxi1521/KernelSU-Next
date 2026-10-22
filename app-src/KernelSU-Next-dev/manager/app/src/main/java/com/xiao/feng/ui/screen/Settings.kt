@@ -71,7 +71,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * @author weishu
+ * @author XiaoFeng
  * @date 2023/1/1.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,7 +82,7 @@ fun SettingScreen(navigator: DestinationsNavigator) {
     val snackBarHost = LocalSnackbarHost.current
 
     val isManager = Natives.isManager
-    val ksuVersion = if (isManager) Natives.version else null
+    val xfgVersion = if (isManager) Natives.version else null
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -188,7 +188,7 @@ fun SettingScreen(navigator: DestinationsNavigator) {
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (ksuVersion != null) {
+            if (xfgVersion != null) {
                 KernelFeaturesCard(
                     suCompatStatus = suCompatStatus,
                     kernelUmountStatus = kernelUmountStatus,

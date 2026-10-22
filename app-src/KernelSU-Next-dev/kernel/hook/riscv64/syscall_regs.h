@@ -1,17 +1,17 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-#ifndef __KSU_RISCV64_SYSCALL_REGS_H
-#define __KSU_RISCV64_SYSCALL_REGS_H
+#ifndef __XFG_RISCV64_SYSCALL_REGS_H
+#define __XFG_RISCV64_SYSCALL_REGS_H
 
 #include <linux/errno.h>
 #include <asm/ptrace.h>
 
-static inline void ksu_riscv_redirect_syscall(struct pt_regs *regs, long nr, int dispatcher)
+static inline void xfg_riscv_redirect_syscall(struct pt_regs *regs, long nr, int dispatcher)
 {
     regs->a0 = nr;
     regs->a7 = dispatcher;
 }
 
-static inline int ksu_riscv_restore_syscall(struct pt_regs *regs, int dispatcher, unsigned int count)
+static inline int xfg_riscv_restore_syscall(struct pt_regs *regs, int dispatcher, unsigned int count)
 {
     long nr = (long)regs->a0;
 

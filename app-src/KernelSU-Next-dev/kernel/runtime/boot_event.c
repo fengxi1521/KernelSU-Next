@@ -7,15 +7,15 @@
 #include "policy/allowlist.h"
 #include "policy/feature.h"
 #include "klog.h" // IWYU pragma: keep
-#include "runtime/ksud_boot.h"
-#include "runtime/ksud.h"
+#include "runtime/xfgd_boot.h"
+#include "runtime/xfgd.h"
 #include "manager/manager_observer.h"
 #include "manager/throne_tracker.h"
 
-bool ksu_module_mounted __read_mostly = false;
-bool ksu_boot_completed __read_mostly = false;
+bool xfg_module_mounted __read_mostly = false;
+bool xfg_boot_completed __read_mostly = false;
 
-extern void ksu_avc_spoof_late_init(void);
+extern void xfg_avc_spoof_late_init(void);
 
 void on_post_fs_data(void)
 {
@@ -29,13 +29,13 @@ void on_post_fs_data(void)
     done = true;
     pr_info("on_post_fs_data!\n");
 
-    ksu_load_allow_list();
-    ksu_observer_init();
+    xfg_load_allow_list();
+    xfg_observer_init();
     // Sanity check for safe mode only needs early-boot input samples.
-    ksu_stop_input_hook_runtime();
-    ksu_selinux_hide_handle_post_fs_data();
+    xfg_stop_input_hook_runtime();
+    xfg_selinux_hide_handle_post_fs_data();
     // retry forced features which failed at second stage
-    ksu_feature_apply_forced();
+    xfg_feature_apply_forced();
 }
 
 extern void ext4_unregister_sysfs(struct super_block *sb);
@@ -64,14 +64,14 @@ int nuke_ext4_sysfs(const char *mnt)
 void on_module_mounted(void)
 {
     pr_info("on_module_mounted!\n");
-    ksu_module_mounted = true;
+    xfg_module_mounted = true;
 }
 
 void on_boot_completed(void)
 {
-    ksu_boot_completed = true;
+    xfg_boot_completed = true;
     pr_info("on_boot_completed!\n");
     track_throne(true);
-    ksu_selinux_hide_drop_backup_if_unused();
-    ksu_avc_spoof_late_init();
+    xfg_selinux_hide_drop_backup_if_unused();
+    xfg_avc_spoof_late_init();
 }

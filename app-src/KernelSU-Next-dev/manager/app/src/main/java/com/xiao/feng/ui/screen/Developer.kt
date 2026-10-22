@@ -31,12 +31,12 @@ import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.navigation.EmptyDestinationsNavigator
 import com.xiao.feng.Natives
 import com.xiao.feng.R
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.xiao.feng.ui.component.SwitchItem
 import com.xiao.feng.ui.util.*
 
 /**
- * @author rifsxd
+ * @author XiaoFeng
  * @date 2025/6/15.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,7 +57,7 @@ fun DeveloperScreen(navigator: DestinationsNavigator) {
     val snackBarHost = LocalSnackbarHost.current
 
     val isManager = Natives.isManager
-    val ksuVersion = if (isManager) Natives.version else null
+    val xfgVersion = if (isManager) Natives.version else null
 
     val scrollState = LocalScrollState.current
     val navBarEnabled = LocalNavBarEnabled.current
@@ -99,7 +99,7 @@ fun DeveloperScreen(navigator: DestinationsNavigator) {
                     prefs.getBoolean("enable_developer_options", false)
                 )
             }
-            if (ksuVersion != null) {
+            if (xfgVersion != null) {
                 SwitchItem(
                     icon = Icons.Filled.DeveloperMode,
                     title = stringResource(id = R.string.enable_developer_options),
@@ -116,7 +116,7 @@ fun DeveloperScreen(navigator: DestinationsNavigator) {
                     prefs.getBoolean("enable_web_debugging", false)
                 )
             }
-            if (ksuVersion != null) {
+            if (xfgVersion != null) {
                 SwitchItem(
                     enabled = developerOptionsEnabled,
                     icon = Icons.Filled.Web,
@@ -132,7 +132,7 @@ fun DeveloperScreen(navigator: DestinationsNavigator) {
             var softRebootAfterModuleFlash by rememberSaveable {
                 mutableStateOf(prefs.getBoolean("soft_reboot_after_module_flash", false))
             }
-            if (ksuVersion != null) {
+            if (xfgVersion != null) {
                 SwitchItem(
                     icon = Icons.Filled.Refresh,
                     title = stringResource(R.string.soft_reboot_after_module_flash),

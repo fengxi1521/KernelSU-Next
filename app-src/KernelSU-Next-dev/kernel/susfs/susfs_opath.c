@@ -70,7 +70,7 @@
 #include "susfs_opath.h"
 #include "susfs_fp_hook.h"
 #include "susfs_or_entry.h"	/* open_redirect's name layer shares exactly these five entries */
-#include "ksu_allow_gate.h"	/* the control-node gate is su's own */
+#include "xfg_allow_gate.h"	/* the control-node gate is su's own */
 
 /* The AArch32 numbers.  No arm64 header defines them as __NR_*: they are what
  * arch/arm64/include/asm/unistd32.h is generated from, i.e.

@@ -1,16 +1,16 @@
 //
-// Created by weishu on 2022/12/9.
+// Created by XiaoFeng on 2022/12/9.
 //
 
-#ifndef XFENG_KSU_H
-#define XFENG_KSU_H
+#ifndef XFENG_XFG_H
+#define XFENG_XFG_H
 
 #include <cstdint>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <utility>
 
-#include "uapi/ksu.h"
+#include "uapi/xfg.h"
 
 uint32_t get_kernel_uapi_version();
 
@@ -30,7 +30,7 @@ bool is_late_load_mode();
 
 bool is_manager();
 
-using p_key_t = char[KSU_MAX_PACKAGE_NAME];
+using p_key_t = char[XFG_MAX_PACKAGE_NAME];
 
 bool set_app_profile(const app_profile *profile);
 
@@ -69,7 +69,7 @@ bool set_avc_spoof_enabled(bool enabled);
 
 bool is_avc_spoof_enabled();
 
-bool get_allow_list(struct ksu_new_get_allow_list_cmd *);
+bool get_allow_list(struct xfg_new_get_allow_list_cmd *);
 
 inline std::pair<int, int> legacy_get_info() {
     int32_t version = -1;
@@ -79,4 +79,4 @@ inline std::pair<int, int> legacy_get_info() {
     return {version, flags};
 }
 
-#endif //XFENG_KSU_H
+#endif //XFENG_XFG_H

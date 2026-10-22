@@ -17,7 +17,7 @@
 
 #include "klog.h" // IWYU pragma: keep
 
-DEFINE_STATIC_KEY_FALSE(ksu_adb_root);
+DEFINE_STATIC_KEY_FALSE(xfg_adb_root);
 
 static long is_exec_adbd(const char __user *filename_user)
 {
@@ -46,12 +46,12 @@ static long is_exec_adbd(const char __user *filename_user)
 
 static long is_libadbroot_ok()
 {
-    static const char kLibAdbRoot[] = "/data/adb/ksu/lib/libadbroot.so";
+    static const char kLibAdbRoot[] = "/data/adb/xfg/lib/libadbroot.so";
     struct path path;
     long ret = kern_path(kLibAdbRoot, 0, &path);
     if (ret < 0) {
         if (ret == -ENOENT) {
-            pr_err("libadbroot.so not exists, skip adb root. Please run `ksud install`\n");
+            pr_err("libadbroot.so not exists, skip adb root. Please run `xfgd install`\n");
             ret = 0;
         } else {
             pr_err("access libadbroot.so failed: %ld, skip adb root\n", ret);
@@ -66,8 +66,8 @@ static long is_libadbroot_ok()
 
 static long setup_ld_preload(struct pt_regs *regs, unsigned long *envp_p)
 {
-    static const char kLdPreload[] = "LD_PRELOAD=/data/adb/ksu/lib/libadbroot.so";
-    static const char kLdLibraryPath[] = "LD_LIBRARY_PATH=/data/adb/ksu/lib";
+    static const char kLdPreload[] = "LD_PRELOAD=/data/adb/xfg/lib/libadbroot.so";
+    static const char kLdLibraryPath[] = "LD_LIBRARY_PATH=/data/adb/xfg/lib";
     static const size_t kReadEnvBatch = 16;
     static const size_t kPtrSize = sizeof(unsigned long);
     unsigned long stackp = user_stack_pointer(regs);
@@ -157,7 +157,7 @@ out_release_env_p:
     return ret;
 }
 
-static long do_ksu_adb_root_handle_execve(const char __user *filename_user, struct pt_regs *regs, unsigned long *envp_p)
+static long do_xfg_adb_root_handle_execve(const char __user *filename_user, struct pt_regs *regs, unsigned long *envp_p)
 {
     if (likely(is_exec_adbd(filename_user) != 1)) {
         return 0;
@@ -177,19 +177,19 @@ static long do_ksu_adb_root_handle_execve(const char __user *filename_user, stru
     return 0;
 }
 
-long ksu_adb_root_handle_execve(struct pt_regs *regs)
+long xfg_adb_root_handle_execve(struct pt_regs *regs)
 {
-    if (static_branch_unlikely(&ksu_adb_root)) {
-        return do_ksu_adb_root_handle_execve((const char __user *)PT_REGS_SYSCALL_PARM1(regs), regs,
+    if (static_branch_unlikely(&xfg_adb_root)) {
+        return do_xfg_adb_root_handle_execve((const char __user *)PT_REGS_SYSCALL_PARM1(regs), regs,
                                              (unsigned long *)&PT_REGS_PARM3(regs));
     }
     return 0;
 }
 
-long ksu_adb_root_handle_execveat(struct pt_regs *regs)
+long xfg_adb_root_handle_execveat(struct pt_regs *regs)
 {
-    if (static_branch_unlikely(&ksu_adb_root)) {
-        return do_ksu_adb_root_handle_execve((const char __user *)PT_REGS_PARM2(regs), regs,
+    if (static_branch_unlikely(&xfg_adb_root)) {
+        return do_xfg_adb_root_handle_execve((const char __user *)PT_REGS_PARM2(regs), regs,
                                              (unsigned long *)&PT_REGS_SYSCALL_PARM4(regs));
     }
     return 0;
@@ -197,7 +197,7 @@ long ksu_adb_root_handle_execveat(struct pt_regs *regs)
 
 static int kernel_adb_root_feature_get(u64 *value)
 {
-    *value = static_key_enabled(&ksu_adb_root) ? 1 : 0;
+    *value = static_key_enabled(&xfg_adb_root) ? 1 : 0;
     return 0;
 }
 
@@ -205,29 +205,29 @@ static int kernel_adb_root_feature_set(u64 value)
 {
     bool enable = value != 0;
     if (enable) {
-        static_key_enable(&ksu_adb_root.key);
+        static_key_enable(&xfg_adb_root.key);
     } else {
-        static_key_disable(&ksu_adb_root.key);
+        static_key_disable(&xfg_adb_root.key);
     }
     pr_info("adb_root: set to %d\n", enable);
     return 0;
 }
 
-static const struct ksu_feature_handler ksu_adb_root_handler = {
-    .feature_id = KSU_FEATURE_ADB_ROOT,
+static const struct xfg_feature_handler xfg_adb_root_handler = {
+    .feature_id = XFG_FEATURE_ADB_ROOT,
     .name = "adb_root",
     .get_handler = kernel_adb_root_feature_get,
     .set_handler = kernel_adb_root_feature_set,
 };
 
-void __init ksu_adb_root_init(void)
+void __init xfg_adb_root_init(void)
 {
-    if (ksu_register_feature_handler(&ksu_adb_root_handler)) {
+    if (xfg_register_feature_handler(&xfg_adb_root_handler)) {
         pr_err("Failed to register adb_root feature handler\n");
     }
 }
 
-void __exit ksu_adb_root_exit(void)
+void __exit xfg_adb_root_exit(void)
 {
-    ksu_unregister_feature_handler(KSU_FEATURE_ADB_ROOT);
+    xfg_unregister_feature_handler(XFG_FEATURE_ADB_ROOT);
 }

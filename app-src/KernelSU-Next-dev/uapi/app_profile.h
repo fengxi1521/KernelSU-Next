@@ -1,22 +1,22 @@
-#ifndef __KSU_UAPI_APP_PROFILE_H
-#define __KSU_UAPI_APP_PROFILE_H
+#ifndef __XFG_UAPI_APP_PROFILE_H
+#define __XFG_UAPI_APP_PROFILE_H
 
 #include <linux/types.h>
 
-#define KSU_APP_PROFILE_VER 4
-#define KSU_MAX_PACKAGE_NAME 256
+#define XFG_APP_PROFILE_VER 4
+#define XFG_MAX_PACKAGE_NAME 256
 /* NGROUPS_MAX for Linux is 65535 generally, but we only supports 32 groups. */
-#define KSU_MAX_GROUPS 32
-#define KSU_SELINUX_DOMAIN 64
+#define XFG_MAX_GROUPS 32
+#define XFG_SELINUX_DOMAIN 64
 
-#define FLAG_KSU_NO_NEW_PRIVS (1ULL << 0)
+#define FLAG_XFG_NO_NEW_PRIVS (1ULL << 0)
 
 struct root_profile {
     __s32 uid;
     __s32 gid;
 
     __u32 groups_count;
-    __s32 groups[KSU_MAX_GROUPS];
+    __s32 groups[XFG_MAX_GROUPS];
 
     /* kernel_cap_t is u32[2] for capabilities v3 */
     struct {
@@ -25,7 +25,7 @@ struct root_profile {
         __u64 inheritable;
     } capabilities;
 
-    char selinux_domain[KSU_SELINUX_DOMAIN];
+    char selinux_domain[XFG_SELINUX_DOMAIN];
 
     __s32 namespaces;
 
@@ -44,14 +44,14 @@ struct app_profile {
     __u32 version;
 
     /* this is usually the package of the app, but can be other value for special apps */
-    char key[KSU_MAX_PACKAGE_NAME];
+    char key[XFG_MAX_PACKAGE_NAME];
     __s32 curr_uid;
     bool allow_su;
 
     union {
         struct {
             bool use_default;
-            char template_name[KSU_MAX_PACKAGE_NAME];
+            char template_name[XFG_MAX_PACKAGE_NAME];
 
             struct root_profile profile;
         } rp_config;

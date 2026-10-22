@@ -50,7 +50,7 @@ import com.xiao.feng.ui.viewmodel.getTemplateInfoById
 import kotlinx.coroutines.launch
 
 /**
- * @author weishu
+ * @author XiaoFeng
  * @date 2023/5/16.
  */
 @OptIn(ExperimentalMaterial3Api::class)

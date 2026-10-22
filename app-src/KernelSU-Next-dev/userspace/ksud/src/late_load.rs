@@ -40,9 +40,9 @@ pub fn run(package_name: &String, kmi: Option<String>, allow_shell: bool) -> Res
     info!("late-load command triggered!");
     dump_process_info("late-load start");
 
-    // 1. Check if KernelSU is already loaded
-    if ksuinit::has_kernelsu() {
-        info!("KernelSU already loaded, skip loading ko");
+    // 1. Check if XiaoFeng is already loaded
+    if xfginit::has_xiaofeng() {
+        info!("XiaoFeng already loaded, skip loading ko");
     } else {
         // 2. Detect current KMI version
         let kmi = kmi.map_or_else(
@@ -52,26 +52,26 @@ pub fn run(package_name: &String, kmi: Option<String>, allow_shell: bool) -> Res
         info!("Detected KMI: {kmi}");
 
 
-        // 3. Get kernelsu.ko from embedded assets
-        let ko_name = format!("{kmi}_kernelsu.ko");
+        // 3. Get xiaofeng.ko from embedded assets
+        let ko_name = format!("{kmi}_xiaofeng.ko");
         let ko_data = assets::get_asset_data(&ko_name)
             .with_context(|| format!("Failed to get {ko_name} from assets"))?;
 
-        // 4. Load kernelsu.ko from memory with manual relocation
-        info!("Loading kernelsu.ko for KMI {kmi}...");
+        // 4. Load xiaofeng.ko from memory with manual relocation
+        info!("Loading kernel module for KMI {kmi}...");
         // bundled flag is meaningless in jailbreak mode since we can't flash boot to update it.
         let params = if allow_shell {
             cstr!("allow_shell=1")
         } else {
             cstr!("")
         };
-        ksuinit::load_module(&ko_data, params).context("Failed to load kernelsu.ko")?;
-        info!("kernelsu.ko loaded successfully!");
+        xfginit::load_module(&ko_data, params).context("Failed to load kernel module")?;
+        info!("kernel module loaded successfully!");
         dump_process_info("after load_module");
     }
 
     // We need to reset stdin/stdout/stderr; otherwise, sending file descriptors via cmd transactions
-    // will be blocked by SELinux because its fsec->sid is still u:r:su:s0 instead of u:r:ksu:s0.
+    // will be blocked by SELinux because its fsec->sid is still u:r:su:s0 instead of u:r:xfg:s0.
     utils::reset_std()?;
 
     utils::umask(0);
@@ -80,7 +80,7 @@ pub fn run(package_name: &String, kmi: Option<String>, allow_shell: bool) -> Res
         warn!("clear temp configs failed: {e}");
     }
 
-    utils::install(None).context("Failed to install ksud")?;
+    utils::install(None).context("Failed to install xfgd")?;
 
     crate::hot_install::clean_trash();
 
@@ -135,14 +135,14 @@ pub fn run(package_name: &String, kmi: Option<String>, allow_shell: bool) -> Res
     // 13. Execute boot-completed stage scripts (non-blocking)
     init_event::run_stage("boot-completed", ScriptWait::NoWait);
 
-    // 14. Restart Manager so it gets a fresh ksu fd from the newly loaded kernel module
-    info!("Restarting KernelSU Next Manager {package_name}...");
+    // 14. Restart Manager so it gets a fresh xfg fd from the newly loaded kernel module
+    info!("Restarting XiaoFeng Manager {package_name}...");
     let _ = Command::new("am").args(["force-stop", package_name]).status();
     let _ = Command::new("am")
         .args([
             "start",
             "-n",
-            &format!("{package_name}/com.rifsxd.ksunext.ui.MainActivity"),
+            &format!("{package_name}/com.xiao.feng.ui.MainActivity"),
         ])
         .status();
 

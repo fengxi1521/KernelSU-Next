@@ -987,60 +987,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ksud"
-version = "0.1.0"
-dependencies = [
- "android-bootimg",
- "android_logger",
- "anyhow",
- "base16ct",
- "bindgen",
- "chrono",
- "clap",
- "const_format",
- "derive-new",
- "encoding_rs",
- "env_logger",
- "extattr",
- "getopts",
- "humansize",
- "is_executable",
- "java-properties",
- "jwalk",
- "ksuinit",
- "libc",
- "log",
- "memmap2",
- "nom 8.0.0",
- "prop-rs-android",
- "regex-lite",
- "rust-embed",
- "rustix 1.1.4",
- "serde",
- "serde_json",
- "sha1",
- "sha256",
- "tempfile",
- "unicode-normalization",
- "which",
- "zip 8.5.0",
- "zip-extensions",
-]
-
-[[package]]
-name = "ksuinit"
-version = "2.0.0"
-dependencies = [
- "anyhow",
- "goblin",
- "kernlog",
- "log",
- "rustix 0.38.34",
- "scroll",
- "syscalls",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2252,6 +2198,60 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser",
+]
+
+[[package]]
+name = "xfgd"
+version = "0.1.0"
+dependencies = [
+ "android-bootimg",
+ "android_logger",
+ "anyhow",
+ "base16ct",
+ "bindgen",
+ "chrono",
+ "clap",
+ "const_format",
+ "derive-new",
+ "encoding_rs",
+ "env_logger",
+ "extattr",
+ "getopts",
+ "humansize",
+ "is_executable",
+ "java-properties",
+ "jwalk",
+ "libc",
+ "log",
+ "memmap2",
+ "nom 8.0.0",
+ "prop-rs-android",
+ "regex-lite",
+ "rust-embed",
+ "rustix 1.1.4",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha256",
+ "tempfile",
+ "unicode-normalization",
+ "which",
+ "xfginit",
+ "zip 8.5.0",
+ "zip-extensions",
+]
+
+[[package]]
+name = "xfginit"
+version = "2.0.0"
+dependencies = [
+ "anyhow",
+ "goblin",
+ "kernlog",
+ "log",
+ "rustix 0.38.34",
+ "scroll",
+ "syscalls",
 ]
 
 [[package]]

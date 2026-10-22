@@ -1,5 +1,5 @@
 use crate::{
-    defs, ksucalls,
+    defs, xfgcalls,
     utils::{self, umask},
 };
 use anyhow::{Context, Ok, Result, anyhow, bail};
@@ -14,14 +14,14 @@ use std::{
     process::Command,
 };
 
-use crate::ksucalls::get_wrapped_fd;
+use crate::xfgcalls::get_wrapped_fd;
 use rustix::{
     process::getuid,
     thread::{Gid, Uid, set_thread_res_gid, set_thread_res_uid},
 };
 
 pub fn grant_root(global_mnt: bool) -> Result<()> {
-    crate::ksucalls::grant_root()?;
+    crate::xfgcalls::grant_root()?;
 
     let mut command = Command::new("sh");
     let command = unsafe {
@@ -35,13 +35,13 @@ pub fn grant_root(global_mnt: bool) -> Result<()> {
             Result::Ok(())
         })
     };
-    // add /data/adb/ksu/bin to PATH
+    // add /data/adb/xfg/bin to PATH
     add_path_to_env(defs::BINARY_DIR)?;
     Err(command.exec().into())
 }
 
 fn print_usage(program: &str, opts: &Options) {
-    let brief = format!("KernelSU\n\nUsage: {program} [options] [-] [user [argument...]]");
+    let brief = format!("XiaoFeng\n\nUsage: {program} [options] [-] [user [argument...]]");
     print!("{}", opts.usage(&brief));
 }
 
@@ -113,10 +113,10 @@ fn wrap_tty(fd: c_int) {
 pub fn root_shell() -> Result<()> {
     // The kernel has already applied the selected root profile.
 
-    // A su-session driver fd deliberately survives the exec into ksud. Claim
+    // A su-session driver fd deliberately survives the exec into xfgd. Claim
     // it before handling any arguments and restore FD_CLOEXEC so it cannot
     // leak into the target shell, including when fd wrapping is disabled.
-    ksucalls::claim_inherited_driver_fd().context("claim inherited KernelSU driver fd")?;
+    xfgcalls::claim_inherited_driver_fd().context("claim inherited XiaoFeng driver fd")?;
 
     let env_args: Vec<String> = env::args().collect();
     let program = env_args[0].clone();
@@ -193,11 +193,11 @@ pub fn root_shell() -> Result<()> {
         "Specify a supplementary group. The first specified supplementary group is also used as a primary group if the option -g is not specified.",
         "GROUP",
     );
-    opts.optflag("W", "no-wrapper", "don't use ksu fd wrapper");
+    opts.optflag("W", "no-wrapper", "don't use xfg fd wrapper");
     opts.optflag(
         "",
-        "ksu-no-new-privs",
-        "Prevent this process (and its children) from privilege re-escalation via KernelSU Next",
+        "xfg-no-new-privs",
+        "Prevent this process (and its children) from privilege re-escalation via XiaoFeng",
     );
     opts.optopt("Z", "context", "Specify the SELinux context", "CONTEXT");
 
@@ -230,7 +230,7 @@ pub fn root_shell() -> Result<()> {
     }
 
     if matches.opt_present("v") {
-        println!("{}:KernelSU", defs::VERSION_NAME);
+        println!("{}:XiaoFeng", defs::VERSION_NAME);
         return Ok(());
     }
 
@@ -246,7 +246,7 @@ pub fn root_shell() -> Result<()> {
     let preserve_env = matches.opt_present("p");
     let mount_master = matches.opt_present("M");
     let use_fd_wrapper = !matches.opt_present("W");
-    let ksu_no_new_privs = matches.opt_present("ksu-no-new-privs");
+    let xfg_no_new_privs = matches.opt_present("xfg-no-new-privs");
     let selinux_context = matches.opt_str("Z");
 
     let groups = matches
@@ -318,16 +318,16 @@ pub fn root_shell() -> Result<()> {
         }
     }
 
-    // add /data/adb/ksu/bin to PATH
+    // add /data/adb/xfg/bin to PATH
     add_path_to_env(defs::BINARY_DIR)?;
 
-    // when KSURC_PATH exists and ENV is not set, set ENV to KSURC_PATH
-    if PathBuf::from(defs::KSURC_PATH).exists() && env::var("ENV").is_err() {
-        command.env("ENV", defs::KSURC_PATH);
+    // when XFGRC_PATH exists and ENV is not set, set ENV to XFGRC_PATH
+    if PathBuf::from(defs::XFGRC_PATH).exists() && env::var("ENV").is_err() {
+        command.env("ENV", defs::XFGRC_PATH);
     }
 
-    if ksu_no_new_privs {
-        ksucalls::set_ksu_no_new_privs().context("set KSU_NO_NEW_PRIVS")?;
+    if xfg_no_new_privs {
+        xfgcalls::set_xfg_no_new_privs().context("set XFG_NO_NEW_PRIVS")?;
     }
 
     // escape from the current cgroup and become session leader

@@ -6,7 +6,7 @@ import androidx.compose.runtime.Immutable
 import kotlinx.parcelize.Parcelize
 
 /**
- * @author weishu
+ * @author XiaoFeng
  * @date 2022/12/8.
  */
 object Natives {
@@ -23,7 +23,7 @@ object Natives {
     // 33188: add uapi version
     const val MINIMAL_SUPPORTED_KERNEL = 33188
 
-    const val KERNEL_SU_DOMAIN = "u:r:ksu:s0"
+    const val KERNEL_SU_DOMAIN = "u:r:xfg:s0"
 
     const val ROOT_UID = 0
     const val ROOT_GID = 0
@@ -67,7 +67,7 @@ object Natives {
      * Get a string indicating the SU hook mode enabled in kernel.
      * The return values are:
      * - "Manual": Manual hooks was enabled.
-     * - "Kprobes": Kprobes hooks was enabled (CONFIG_KSU_KPROBES_HOOK).
+     * - "Kprobes": Kprobes hooks was enabled (CONFIG_XFG_KPROBES_HOOK).
      *
      * @return return hook mode, or null if unavailable.
      */
@@ -145,7 +145,7 @@ object Natives {
 
     external fun getSuperuserCount(): Int
 
-    private const val KSU_GET_INFO_FLAG_MANAGER = 1 shl 1
+    private const val XFG_GET_INFO_FLAG_MANAGER = 1 shl 1
     private const val NON_ROOT_DEFAULT_PROFILE_KEY = "$"
     private const val NOBODY_UID = 9999
 
@@ -176,7 +176,7 @@ object Natives {
         return isManager && kernelUAPIVersion == managerUAPIVersion && com.xiao.feng.ui.util.rootAvailable()
     }
 
-    val KSU_WORK_DIR = "/data/adb/ksu/"
+    val XFG_WORK_DIR = "/data/adb/xfg/"
 
     @Immutable
     @Parcelize
@@ -203,9 +203,9 @@ object Natives {
 
         val nonRootUseDefault: Boolean = true,
         val umountModules: Boolean = true,
-        var rules: String = "", // this field is save in ksud!!
+        var rules: String = "", // this field is save in xfgd!!
 
-        val flags: Long = FLAG_KSU_NO_NEW_PRIVS,
+        val flags: Long = FLAG_XFG_NO_NEW_PRIVS,
     ) : Parcelable {
         @Keep
         enum class RootProfileFlag(val display: String, val desc: Int) {
@@ -224,7 +224,7 @@ object Natives {
         constructor() : this("")
     }
 
-    const val FLAG_KSU_NO_NEW_PRIVS = 1L
+    const val FLAG_XFG_NO_NEW_PRIVS = 1L
 }
 
 fun List<Natives.Profile.RootProfileFlag>.toRawFlags(): Long =

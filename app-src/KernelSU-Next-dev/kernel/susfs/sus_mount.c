@@ -1,42 +1,42 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * sus_mount.c - hide KSU mounts from /proc/mounts and /proc/mountinfo.
+ * sus_mount.c - hide XFG mounts from /proc/mounts and /proc/mountinfo.
  *
- * Upstream SUSFS skips a mount line when r->mnt_id >= DEFAULT_KSU_MNT_ID, and
- * (patch:1561-1585) installs those show functions only for NON-ksu domains
- * (!susfs_is_current_ksu_domain() in mounts_open()/mountinfo_open()/mountstats_open()),
- * so the su/ksu domain keeps seeing its own mounts (zygisk in post-fs-data and ksud
+ * Upstream SUSFS skips a mount line when r->mnt_id >= DEFAULT_XFG_MNT_ID, and
+ * (patch:1561-1585) installs those show functions only for NON-xfg domains
+ * (!susfs_is_current_xfg_domain() in mounts_open()/mountinfo_open()/mountstats_open()),
+ * so the su/xfg domain keeps seeing its own mounts (zygisk in post-fs-data and xfgd
  * break otherwise).  The stock show functions are static but sit behind proc_ops function
  * pointers, so they are NOT LTO-inlined and stay kprobe-able (verified in kallsyms); the
  * LKM hooks all three with a kprobe pre_handler and returns early (regs->pc = x30) for a
- * KSU-range id, under the same domain gate.  struct mount / real_mount() come from the
+ * XFG-range id, under the same domain gate.  struct mount / real_mount() come from the
  * private fs/mount.h (its includes are all public headers, so -I$(srctree)/fs is enough).
  *
  * The LKM hooks all three show functions with a kprobe pre_handler and returns
- * early (regs->pc = x30) when the mount id is in the KSU range - but only for
- * non-su/ksu processes, mirroring upstream's domain gate: the su domain must
- * keep seeing its own mounts or su tooling (zygisk in post-fs-data, ksud)
+ * early (regs->pc = x30) when the mount id is in the XFG range - but only for
+ * non-su/xfg processes, mirroring upstream's domain gate: the su domain must
+ * keep seeing its own mounts or su tooling (zygisk in post-fs-data, xfgd)
  * breaks.  struct mount / real_mount() come from the private fs/mount.h (its
  * includes are all public headers, so -I$(srctree)/fs is enough).
  *
  * HOW THE ID RANGE IS PRODUCED (this is the part that used to be missing):
- * upstream gets KSU mounts into that range by ADDING an allocator
- * (susfs_alloc_non_unshare_ksu_vfsmnt(), which calls
- * ida_alloc_min(&mnt_id_ida, DEFAULT_KSU_MNT_ID, GFP_KERNEL), patch:676-693) and
+ * upstream gets XFG mounts into that range by ADDING an allocator
+ * (susfs_alloc_non_unshare_xfg_vfsmnt(), which calls
+ * ida_alloc_min(&mnt_id_ida, DEFAULT_XFG_MNT_ID, GFP_KERNEL), patch:676-693) and
  * SWAPPING THE CALL SITES in vfs_create_mount()/clone_mnt() (patch:764, 800);
  * mnt_alloc_id() itself is never patched.  The LKM does not patch kernel text
  * at all, so its stock allocator (plain ida_alloc, smallest free id) keeps
  * handing out small ids - measured on device: 91..39693, so the old fixed 2e9
  * threshold could never match and the feature was 100% OFF.
  *
- * A mount is one of ours when mnt_devname contains "/data/adb/" (KSU/module bind mounts)
+ * A mount is one of ours when mnt_devname contains "/data/adb/" (XFG/module bind mounts)
  * or the mount POINT - d_path() of {mnt, mnt_root}, the path show_mountinfo() prints - is
  * under /data/adb (catches meta-overlayfs, whose source is /dev/block/loopNN).  Marked ids
  * are never restored on disable, matching upstream, where an id is assigned once at mount
  * time and stays for the mount's lifetime.
  *
  * The new id is a REAL id taken from the kernel's own mnt_id_ida:
- *   ida_alloc_range(&mnt_id_ida, DEFAULT_KSU_MNT_ID, INT_MAX - 1, GFP_KERNEL)
+ *   ida_alloc_range(&mnt_id_ida, DEFAULT_XFG_MNT_ID, INT_MAX - 1, GFP_KERNEL)
  * NOT an invented number.  That is not a style choice.  mnt_free_id()
  * (fs/namespace.c:136-139) unconditionally calls ida_free(&mnt_id_ida,
  * mnt->mnt_id) when the mount finally goes away, so a hand-made id makes
@@ -53,7 +53,7 @@
  * a self-made id is deliberately NOT an option (see the WARN above).
  *
  * A mount is recognised by either of:
- *   - mnt_devname contains "/data/adb/" (KSU/module bind mounts, whose source is
+ *   - mnt_devname contains "/data/adb/" (XFG/module bind mounts, whose source is
  *     the file under /data/adb/modules/...);
  *   - the mount POINT - d_path() of {mnt, mnt_root}, i.e. the same path
  *     show_mountinfo() prints - is under /data/adb (catches meta-overlayfs, whose
@@ -64,7 +64,7 @@
  *
  * ---- the namespace that matters, and why identity is remembered as well
  *
- * KernelSU mounts module content into the ZYGOTE's mount namespace, because that
+ * XiaoFeng mounts module content into the ZYGOTE's mount namespace, because that
  * is the namespace every app is forked into.  The same filesystem is therefore a
  * different mount OBJECT there, with an id of its own - measured on this device:
  * /data/adb/modules/meta-overlayfs/mnt is id 2000000000 in the init namespace and
@@ -89,12 +89,12 @@
  *   - superblock device + root dentry (both belong to the filesystem, so the same
  *     filesystem mounted in the zygote is matched), plus a path-shaped source
  *     string for equality;
- *   - the hide hooks accept identity as well as a KSU-range id, and hiding an
+ *   - the hide hooks accept identity as well as a XFG-range id, and hiding an
  *     identity-matched mount learns its id into the same id -> shown-id mapping, so
  *     fdinfo/statx keep naming a mount line the caller can still see.
  *
  * Known blind spots of the scan:
- *   - overlayfs mounts that KernelSU places on /system have d_path "/system"
+ *   - overlayfs mounts that XiaoFeng places on /system have d_path "/system"
  *     and mnt_devname "overlay", so they are NOT recognised; only intercepting
  *     vfs_create_mount()/clone_mnt() by su domain (upstream's group (1)) would
  *     catch those;
@@ -146,7 +146,7 @@
 #include "susfs_abi.h"
 #include "susfs_log.h"
 #include "susfs.h"	/* module-wide declarations */
-#include "ksu_allow_gate.h"	/* the control-node gate is su's own */
+#include "xfg_allow_gate.h"	/* the control-node gate is su's own */
 #include "susfs_kprobe.h"
 
 /* ---- the "which mounts are ours" prefix list: state ----
@@ -180,11 +180,11 @@ static atomic_t n_keep_rescans = ATOMIC_INIT(0);
  * sus_mount_register()).  Declared up here because mount_stat() reports it. */
 static int n_show_probes;
 
-#define DEFAULT_KSU_MNT_ID 2000000000ULL
+#define DEFAULT_XFG_MNT_ID 2000000000ULL
 
 /* min_mnt_id is a raw ulong tunable: 0/1 would make EVERY mount line match the
  * threshold, hiding all of /proc/mounts, /proc/<pid>/mountinfo and mountstats from
- * every process, su included.  Below this it is clamped back to DEFAULT_KSU_MNT_ID. */
+ * every process, su included.  Below this it is clamped back to DEFAULT_XFG_MNT_ID. */
 #define SUS_MOUNT_MIN_SANE_MNT_ID 1000
 
 /* Hard bound on the mount-namespace walk.  A concurrent umount_tree() does
@@ -192,19 +192,19 @@ static int n_show_probes;
  * itself, so an unbounded list_for_each() can spin forever if it lands on it. */
 #define SUS_MOUNT_MAX_SCAN 65536
 
-/* At/above this is "already a KSU-range id" (upstream's own test, patch:807).  The
+/* At/above this is "already a XFG-range id" (upstream's own test, patch:807).  The
  * marking side uses this constant and not the min_mnt_id tunable: a raised tunable
  * would re-mark an already-marked mount and allocate a SECOND id, leaking the first
  * for the mount's lifetime.  With the default tunable the two tests are identical. */
-#define SUS_MOUNT_KSU_ID_MIN ((unsigned int)DEFAULT_KSU_MNT_ID)
+#define SUS_MOUNT_XFG_ID_MIN ((unsigned int)DEFAULT_XFG_MNT_ID)
 
-static unsigned long param_min_mnt_id = DEFAULT_KSU_MNT_ID;
+static unsigned long param_min_mnt_id = DEFAULT_XFG_MNT_ID;
 module_param_named(min_mnt_id, param_min_mnt_id, ulong, 0644);
 
-/* SELinux context of the su/ksu domain, resolved to a sid at init.  Keep in sync
- * with susfs_avc_spoof.c's avc_su_ctx ("u:r:ksu:s0", the SukiSU variant; stock KernelSU
+/* SELinux context of the su/xfg domain, resolved to a sid at init.  Keep in sync
+ * with susfs_avc_spoof.c's avc_su_ctx ("u:r:xfg:s0", the SukiSU variant; stock XiaoFeng
  * is "u:r:su:s0", override with susfs_guard_lkm.su_ctx=u:r:su:s0). */
-static char param_su_ctx[128] = "u:r:ksu:s0";
+static char param_su_ctx[128] = "u:r:xfg:s0";
 module_param_string(su_ctx, param_su_ctx, sizeof(param_su_ctx), 0644);
 
 static u32 su_sid;
@@ -282,7 +282,7 @@ static __nocfi bool sus_mount_is_su_domain(void)
     return sid == su_sid;
 }
 
-/* Allocate a genuine id in the KSU range out of the kernel's own allocator -
+/* Allocate a genuine id in the XFG range out of the kernel's own allocator -
  * mnt_id_ida below 6.18, the mnt_id_xa that replaced it from 6.18 on (see the
  * resolution note above).
  * Process context (GFP_KERNEL, may sleep).  Returns the id, or a negative errno
@@ -290,7 +290,7 @@ static __nocfi bool sus_mount_is_su_domain(void)
 static __nocfi int sus_mount_ida_alloc(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
-    struct xa_limit limit = XA_LIMIT((u32)DEFAULT_KSU_MNT_ID, (u32)(INT_MAX - 1));
+    struct xa_limit limit = XA_LIMIT((u32)DEFAULT_XFG_MNT_ID, (u32)(INT_MAX - 1));
     u32 id = 0;
     int ret;
 
@@ -302,7 +302,7 @@ static __nocfi int sus_mount_ida_alloc(void)
     return (int)id;
 #else
     return pfn_ida_alloc_range(sus_mount_mnt_id_ida,
-                               (unsigned int)DEFAULT_KSU_MNT_ID,
+                               (unsigned int)DEFAULT_XFG_MNT_ID,
                                (unsigned int)(INT_MAX - 1), GFP_KERNEL);
 #endif
 }
@@ -314,7 +314,7 @@ static __nocfi int sus_mount_ida_alloc(void)
  * prototype does not match the kernel's own - measured, and expensive to learn:
  *
  *   Kernel panic - not syncing: CFI failure (target: ida_free+0x0/0x480)
- *   Call trace: sus_mount_mark_ksu_mounts+0x9b0 [susfs_guard_lkm]
+ *   Call trace: sus_mount_mark_xfg_mounts+0x9b0 [susfs_guard_lkm]
  *
  * From 6.18 the same wrapper erases from mnt_id_xa (`__xa_erase`) instead; the
  * reasoning does not change with the symbol. */
@@ -341,7 +341,7 @@ static __nocfi char *sus_mount_d_path(const struct path *path, char *buf, int bu
 static unsigned long sus_mount_min_mnt_id(void)
 {
     if (param_min_mnt_id < SUS_MOUNT_MIN_SANE_MNT_ID)
-        return DEFAULT_KSU_MNT_ID;
+        return DEFAULT_XFG_MNT_ID;
     return param_min_mnt_id;
 }
 
@@ -367,7 +367,7 @@ static DEFINE_MUTEX(sus_mount_ctl_lock);
  * returns stx_mnt_id, both taken straight from the mount the file lives on, so an app can
  * collect the mnt_ids of the fds it holds and look for ones /proc/self/mountinfo never
  * mentions - a positive indicator that something is hidden, and one that needs no root.
- * Upstream rewrites both to the id of the first mount up the chain that is not a KSU mount
+ * Upstream rewrites both to the id of the first mount up the chain that is not a XFG mount
  * (susfs_get_non_sus_mnt_id_from_mnt(), patch:849-858); that value is computed here once per
  * marked mount, at marking time, and kept in a small id table, because at rewrite time all we
  * have is the id (kprobe context: no sleeping, no lookups).
@@ -495,12 +495,12 @@ static int sus_mount_shown_for(int sus_id)
 /* Upstream's susfs_get_non_sus_mnt_id_from_mnt(): climb past every marked mount
  * and report the id of the first one that is not ours.  Must be called AFTER
  * r->mnt_id has been replaced - upstream relies on the same thing, i.e. on the
- * starting mount already carrying a KSU-range id, or the loop would stop at the
+ * starting mount already carrying a XFG-range id, or the loop would stop at the
  * mount itself and report its own (hidden) number. */
 static int sus_mount_shown_id(struct mount *mnt)
 {
     while (mnt && mnt->mnt_parent && mnt != mnt->mnt_parent &&
-           (unsigned int)mnt->mnt_id >= SUS_MOUNT_KSU_ID_MIN)
+           (unsigned int)mnt->mnt_id >= SUS_MOUNT_XFG_ID_MIN)
         mnt = mnt->mnt_parent;
     return mnt ? mnt->mnt_id : 0;
 }
@@ -508,7 +508,7 @@ static int sus_mount_shown_id(struct mount *mnt)
 /* ---- "is this mount one of ours", by IDENTITY and not only by id ----
  *
  * The id test is a property of ONE mount object in ONE namespace, and the id only
- * exists because the marking scan put it there: a KSU mount inside the app/zygote
+ * exists because the marking scan put it there: a XFG mount inside the app/zygote
  * namespace carries whatever id the stock allocator gave it (measured: the
  * meta-overlayfs mount is 2000000000 in the init namespace and 1111 in the
  * zygote's), so the id test hid the line in one view and left it in the other - the
@@ -689,13 +689,13 @@ static struct kprobe kp_sb_down = {
 };
 static bool kp_sb_down_ok;
 
-/* Is this mount one of KernelSU's?  Two tests, cheapest first:
+/* Is this mount one of XiaoFeng's?  Two tests, cheapest first:
  *   - the id range, which is upstream's rule and what the marking scan produces;
  *   - the identity recorded by that scan, which is what catches the same mount in
  *     a namespace the scan could not reach (see the note above). */
 static bool sus_mount_is_ours(struct mount *r)
 {
-    if ((unsigned int)r->mnt_id >= SUS_MOUNT_KSU_ID_MIN)
+    if ((unsigned int)r->mnt_id >= SUS_MOUNT_XFG_ID_MIN)
         return true;
     if (sus_mount_path_is_ours(r->mnt_devname))
         return true;
@@ -708,7 +708,7 @@ static bool sus_mount_is_ours(struct mount *r)
  * otherwise report its own (hidden) number. */
 static int sus_mount_shown_id_from(struct mount *mnt)
 {
-    if (mnt && (unsigned int)mnt->mnt_id < SUS_MOUNT_KSU_ID_MIN)
+    if (mnt && (unsigned int)mnt->mnt_id < SUS_MOUNT_XFG_ID_MIN)
         mnt = mnt->mnt_parent;
     while (mnt && mnt->mnt_parent && mnt != mnt->mnt_parent &&
            sus_mount_is_ours(mnt))
@@ -1011,7 +1011,7 @@ static bool kr_clone_ns_ok;
  * callers, graft_tree() (mount(2)/fsmount and do_loopback binds) and do_move_mount() (a
  * move) - so one kretprobe covers all of them.  Identity is recorded and not an id: it is
  * what the hide hooks compare, needs no allocation and is namespace independent, whereas a
- * KSU-range id needs ida_alloc_range(GFP_KERNEL) and a kprobe handler must not sleep.  The
+ * XFG-range id needs ida_alloc_range(GFP_KERNEL) and a kprobe handler must not sleep.  The
  * shown id is learned at the RETURN (mnt_parent/mnt_mountpoint exist then), and the
  * acceptance rule is the scan's, so this cannot widen what is hidden - a bind of an already
  * recorded filesystem needs no record at all. */
@@ -1138,7 +1138,7 @@ static int sus_mount_fdinfo_entry(struct kretprobe_instance *ri, struct pt_regs 
 }
 
 /* Replaces the decimal after the mnt_id label in the seq_file's already formatted buffer
- * when the id has a disguise in sus_mount's table (KSU-range id -> host id).  The
+ * when the id has a disguise in sus_mount's table (XFG-range id -> host id).  The
  * replacement never grows, so m->count stays consistent.  The other half of the fdinfo line
  * (the ino) belongs to open_redirect's own kretprobe, which must fire whether or not this
  * feature's hide switch is on. */
@@ -1178,7 +1178,7 @@ static bool sus_mount_fdinfo_replace_mntid(struct seq_file *m)
     }
     if (!n)
         return false;
-    /* In practice a KSU-range id is replaced by a small host id, so this shrinks -
+    /* In practice a XFG-range id is replaced by a small host id, so this shrinks -
      * but the room check is here so a rule with an unexpectedly long host id
      * cannot overwrite past the seq_file buffer. */
     if (n > len && count + (n - len) >= m->size)
@@ -1215,7 +1215,7 @@ static int sus_mount_fdinfo_ret(struct kretprobe_instance *ri, struct pt_regs *r
         atomic_inc(&n_fdinfo_nolabel);
         return 0;
     }
-    /* The su/ksu domain keeps seeing its own mounts' real ids, exactly like the
+    /* The su/xfg domain keeps seeing its own mounts' real ids, exactly like the
      * mount-line skip above. */
     if (sus_mount_is_su_domain())
         return 0;
@@ -1248,7 +1248,7 @@ static int sus_mount_fdinfo_arm(void)
     unsigned long addrs[SUS_MOUNT_FDINFO_MAX];
     int i, n;
 
-    n = ksu_find_symbol_all("seq_show", addrs, SUS_MOUNT_FDINFO_MAX);
+    n = xfg_find_symbol_all("seq_show", addrs, SUS_MOUNT_FDINFO_MAX);
     if (n <= 0) {
         pr_warn("sus_mount: seq_show not resolved - fdinfo keeps printing the real mnt_id\n");
         return -ENOENT;
@@ -1488,7 +1488,7 @@ static int sus_mount_show_pre(struct kprobe *kp, struct pt_regs *regs)
     if (!susfs_ptr_plausible(mnt))
         return 0;
     r = real_mount(mnt);
-    /* Cheap path first, and NOT only the id: a KSU mount in a namespace the
+    /* Cheap path first, and NOT only the id: a XFG mount in a namespace the
      * marking scan never reached (the zygote's, hence every app's) keeps a normal
      * id - see the identity note above sus_mount_is_ours(). */
     if (!sus_mount_is_ours(r)) {
@@ -1503,7 +1503,7 @@ static int sus_mount_show_pre(struct kprobe *kp, struct pt_regs *regs)
                     r->mnt.mnt_root, r->mnt_devname ? r->mnt_devname : "none");
         return 0;
     }
-    /* domain gate, upstream patch:1561-1585: the su/ksu domain is not
+    /* domain gate, upstream patch:1561-1585: the su/xfg domain is not
      * touched at all, it must be able to see its own mounts. */
     if (sus_mount_is_su_domain())
         return 0;
@@ -1555,10 +1555,10 @@ static bool sus_mount_show_armed[SUS_MOUNT_SHOW_N];
  * One test, used by both the enable-time scan and the mount-time hook so the two cannot
  * drift: ours when the source string (mnt_devname) or the mountpoint path starts with one of
  * the PREFIXES below.  Runtime configurable - it used to be a hardcoded "/data/adb/"
- * (KernelSU's module store), which never matched a container (proot/chroot) mounting
+ * (XiaoFeng's module store), which never matched a container (proot/chroot) mounting
  * tmpfs/proc/sysfs/devpts at, say, /data/local/tmp/ubuntu2/dev (see the command surface
  * below).  Anchored (strncmp), never a substring search: a devname such as
- * "/mnt/media_rw/x/data/adb/y" is not a KernelSU mount, and matching those hid unrelated
+ * "/mnt/media_rw/x/data/adb/y" is not a XiaoFeng mount, and matching those hid unrelated
  * mounts (measured: a mount whose source was "x/data/adb/y" disappeared for non-su readers).
  * Changing the list rescans the current namespace, so an already-mounted path is picked up
  * without re-enabling (later ones come from the attach_recursive_mnt hook); entries recorded
@@ -1588,14 +1588,14 @@ static bool sus_mount_path_is_ours(const char *s)
     return hit;
 }
 
-/* Retro-fit upstream's "KSU mounts carry an id >= DEFAULT_KSU_MNT_ID" onto the
+/* Retro-fit upstream's "XFG mounts carry an id >= DEFAULT_XFG_MNT_ID" onto the
  * mounts that already exist.  Process context only (kmalloc + d_path +
  * ida_alloc_range with GFP_KERNEL); called from module load and from the
  * supercall enable path.
  *
  * Upstream never needs this: it allocates the big id while the mount is being
- * created (susfs_alloc_non_unshare_ksu_vfsmnt(), patch:676-693, whose
- * ida_alloc_min(&mnt_id_ida, DEFAULT_KSU_MNT_ID, GFP_KERNEL) is the same
+ * created (susfs_alloc_non_unshare_xfg_vfsmnt(), patch:676-693, whose
+ * ida_alloc_min(&mnt_id_ida, DEFAULT_XFG_MNT_ID, GFP_KERNEL) is the same
  * allocation we do here, just at a different moment).  Two properties matter:
  *   - the id is genuinely allocated from mnt_id_ida, so the ida_free() the
  *     kernel runs in mnt_free_id() (fs/namespace.c:136-139) when the mount is
@@ -1640,7 +1640,7 @@ static bool sus_mount_path_is_ours(const char *s)
 
 /* ---- control surface: which mounts are ours ---- */
 
-static int sus_mount_mark_ksu_mounts(void);	/* changing the list rescans */
+static int sus_mount_mark_xfg_mounts(void);	/* changing the list rescans */
 
 static int sus_mount_keep_parse(const char *val, char dst[][SUS_MOUNT_KEEP_LEN], int max)
 {
@@ -1702,7 +1702,7 @@ static void sus_mount_keep_rescan(void)
 
 	if (!mount_registered)
 		return;		/* nothing is armed yet; the scan at enable will do it */
-	rc = sus_mount_mark_ksu_mounts();
+	rc = sus_mount_mark_xfg_mounts();
 	atomic_inc(&n_keep_rescans);
 	SUSFS_LOGI("sus_mount: rescanned after a list change: %d mount(s) marked (rc=%d)\n",
 			rc, rc < 0 ? rc : 0);
@@ -1710,7 +1710,7 @@ static void sus_mount_keep_rescan(void)
 
 /* Commands, same shape as the hide_modules node: add <prefix> | del <prefix> |
  * set <prefix>... | reset | clear.  `reset` restores the built-in default (/data/adb/);
- * `clear` leaves no prefix at all, which stops NEW mounts from being accepted while the KSU
+ * `clear` leaves no prefix at all, which stops NEW mounts from being accepted while the XFG
  * mounts stay hidden by their ids; @bare_list is for the insmod form of the parameter only.
  *
  * The two staging buffers used to be locals, which made this frame 2192 bytes and 6.6
@@ -1881,7 +1881,7 @@ static int sus_mount_keep_format(char *buf, size_t size)
 	for (i = 0; i < nents && n < (int)size - SUS_MOUNT_KEEP_TRUNC_RESERVE; i++)
 		n += scnprintf(buf + n, size - n, " %s", snap[i]);
 	if (!nents)
-		n += scnprintf(buf + n, size - n, " (none - only KSU-range ids are hidden)");
+		n += scnprintf(buf + n, size - n, " (none - only XFG-range ids are hidden)");
 	else if (i < nents)
 		n += scnprintf(buf + n, size - n, " ... (%d more; cat /proc/susfs_hide_mounts for all)",
 			       nents - i);
@@ -1910,7 +1910,7 @@ static void sus_mount_keep_show_seq(struct seq_file *m)
 		   atomic_read(&n_ident_learned));
 	seq_puts(m, "prefixes:");
 	if (!nents)
-		seq_puts(m, " (none - only KSU-range ids are hidden)");
+		seq_puts(m, " (none - only XFG-range ids are hidden)");
 	else
 		for (i = 0; i < nents; i++)
 			seq_printf(m, " %s", snap[i]);
@@ -2138,7 +2138,7 @@ static int sus_mount_scan_ns(struct mnt_namespace *ns, char *buf, unsigned long 
 
         if (id < 0)
             break;
-        if (id < (int)DEFAULT_KSU_MNT_ID) {
+        if (id < (int)DEFAULT_XFG_MNT_ID) {
             /* Below our floor: the resolved mnt_id_ida is not what we think it is.
              * Hand this id back and stop allocating. */
             sus_mount_ida_release(id);
@@ -2147,7 +2147,7 @@ static int sus_mount_scan_ns(struct mnt_namespace *ns, char *buf, unsigned long 
         batch[n_batch++] = id;
     }
     if (!n_batch) {
-        pr_warn("sus_mount: could not allocate KSU-range ids for ns %p - that namespace is left unmarked\n",
+        pr_warn("sus_mount: could not allocate XFG-range ids for ns %p - that namespace is left unmarked\n",
                 ns);
         sus_mount_ns_walk_end();
         return 0;
@@ -2177,16 +2177,16 @@ static int sus_mount_scan_ns(struct mnt_namespace *ns, char *buf, unsigned long 
             n_skipped_ns++;
             continue;
         }
-        /* Anything already carrying a KSU-range id: the idempotency guard for a re-enable (a
+        /* Anything already carrying a XFG-range id: the idempotency guard for a re-enable (a
          * second id for the same mount would leak the first for its lifetime) AND the cover
-         * for KernelSU's own mounts, which this kernel already hands such an id to - measured
+         * for XiaoFeng's own mounts, which this kernel already hands such an id to - measured
          * on this device: exactly one, the meta-overlayfs loop mount at 2000000000.  Their
          * line is skipped by the id alone, so they need the same "id the app may see" mapping
          * or fdinfo/statx print a number mountinfo no longer lists.  Compares against the
-         * constant, not the tunable (SUS_MOUNT_KSU_ID_MIN), and records the identity as well:
+         * constant, not the tunable (SUS_MOUNT_XFG_ID_MIN), and records the identity as well:
          * this namespace's mount is a different OBJECT from the same filesystem's mount in the
          * next namespace (measured: 2000000000 here, 1111 in the zygote's). */
-        if ((unsigned int)r->mnt_id >= SUS_MOUNT_KSU_ID_MIN) {
+        if ((unsigned int)r->mnt_id >= SUS_MOUNT_XFG_ID_MIN) {
             n_skipped_marked++;
             sus_mount_idmap_add((int)r->mnt_id, sus_mount_shown_id(r), r->mnt.mnt_sb->s_dev);
             sus_mount_ident_add(r);
@@ -2234,7 +2234,7 @@ static int sus_mount_scan_ns(struct mnt_namespace *ns, char *buf, unsigned long 
             replaced[n_replaced++] = r->mnt_id;
         r->mnt_id = new_id;
         /* After the id is replaced, exactly like upstream: the climb starts at a
-         * mount that now carries a KSU-range id and stops at the first ancestor
+         * mount that now carries a XFG-range id and stops at the first ancestor
          * that does not - i.e. the id mountinfo still prints for the host. */
         sus_mount_idmap_add(new_id, sus_mount_shown_id(r), r->mnt.mnt_sb->s_dev);
         /* And the identity, so the same filesystem mounted in another namespace
@@ -2269,7 +2269,7 @@ static int sus_mount_scan_ns(struct mnt_namespace *ns, char *buf, unsigned long 
     return marked;
 }
 
-static int sus_mount_mark_ksu_mounts(void)
+static int sus_mount_mark_xfg_mounts(void)
 {
     char *buf;
     unsigned long min;
@@ -2289,21 +2289,21 @@ static int sus_mount_mark_ksu_mounts(void)
     }
 
     if (!current->nsproxy || !current->nsproxy->mnt_ns) {
-        pr_warn("sus_mount: current has no mnt_ns, cannot scan for KSU mounts\n");
+        pr_warn("sus_mount: current has no mnt_ns, cannot scan for XFG mounts\n");
         return -ENOENT;
     }
 
     /* clamp the tunable (a value of 0/1 would match every mount line). */
     if (param_min_mnt_id < SUS_MOUNT_MIN_SANE_MNT_ID) {
         pr_warn("sus_mount: min_mnt_id=%lu is below %d, clamping to %llu\n",
-                param_min_mnt_id, SUS_MOUNT_MIN_SANE_MNT_ID, DEFAULT_KSU_MNT_ID);
-        param_min_mnt_id = DEFAULT_KSU_MNT_ID;
+                param_min_mnt_id, SUS_MOUNT_MIN_SANE_MNT_ID, DEFAULT_XFG_MNT_ID);
+        param_min_mnt_id = DEFAULT_XFG_MNT_ID;
     }
     min = sus_mount_min_mnt_id();
 
     buf = kmalloc(PATH_MAX, GFP_KERNEL);
     if (!buf) {
-        pr_warn("sus_mount: kmalloc(PATH_MAX) failed, no KSU mount marked\n");
+        pr_warn("sus_mount: kmalloc(PATH_MAX) failed, no XFG mount marked\n");
         return -ENOMEM;
     }
 
@@ -2315,22 +2315,22 @@ static int sus_mount_mark_ksu_mounts(void)
      * The one foreign namespace that IS walked is the copy copy_mnt_ns() has just built
      * for the caller, from its own probe - see the clone note above.
      *
-     * The zygote's copy of a KSU mount (the one every app inherits) is reached
+     * The zygote's copy of a XFG mount (the one every app inherits) is reached
      * through the identity table instead: same superblock, same root dentry, and
-     * the hide hooks accept that as well as a KSU-range id, with no cross-namespace
+     * the hide hooks accept that as well as a XFG-range id, with no cross-namespace
      * walk at all.  That is what closes the leak this file's header describes. */
     marked = sus_mount_scan_ns(current->nsproxy->mnt_ns, buf, min);
 
     kfree(buf);
 
     if (marked > 0)
-        SUSFS_LOGI("sus_mount: %d KSU mount(s) marked with real ids from the kernel's own mount-id allocator (>= %llu), %d identity record(s) cached\n",
-                marked, DEFAULT_KSU_MNT_ID, READ_ONCE(n_ident));
+        SUSFS_LOGI("sus_mount: %d XFG mount(s) marked with real ids from the kernel's own mount-id allocator (>= %llu), %d identity record(s) cached\n",
+                marked, DEFAULT_XFG_MNT_ID, READ_ONCE(n_ident));
     else if (marked < 0)
         SUSFS_LOGI("sus_mount: scan refused (%d), nothing marked - the reason is the pr_warn above\n",
                 marked);
     else
-        SUSFS_LOGI("sus_mount: 0 KSU mounts marked (nothing under /data/adb matched in this mnt ns, hide threshold %lu)\n",
+        SUSFS_LOGI("sus_mount: 0 XFG mounts marked (nothing under /data/adb matched in this mnt ns, hide threshold %lu)\n",
                 min);
     return marked;
 }
@@ -2397,14 +2397,14 @@ int susfs_sus_mount_init(void)
 
     if (param_min_mnt_id < SUS_MOUNT_MIN_SANE_MNT_ID) {
         pr_warn("sus_mount: min_mnt_id=%lu is below %d, clamping to %llu\n",
-                param_min_mnt_id, SUS_MOUNT_MIN_SANE_MNT_ID, DEFAULT_KSU_MNT_ID);
-        param_min_mnt_id = DEFAULT_KSU_MNT_ID;
+                param_min_mnt_id, SUS_MOUNT_MIN_SANE_MNT_ID, DEFAULT_XFG_MNT_ID);
+        param_min_mnt_id = DEFAULT_XFG_MNT_ID;
     }
 
-    SUSFS_LOGI("sus_mount: su ctx \"%s\" -> sid %u (stock KernelSU uses \"u:r:su:s0\", override with susfs_guard_lkm.su_ctx)\n",
+    SUSFS_LOGI("sus_mount: su ctx \"%s\" -> sid %u (stock XiaoFeng uses \"u:r:su:s0\", override with susfs_guard_lkm.su_ctx)\n",
             param_su_ctx, su_sid);
     if (!pfn_security_cred_getsecid)
-        pr_warn("sus_mount: security_cred_getsecid not found - no su-domain gating, KSU mounts will be hidden from EVERY process including su\n");
+        pr_warn("sus_mount: security_cred_getsecid not found - no su-domain gating, XFG mounts will be hidden from EVERY process including su\n");
     if (!pfn_d_path)
         pr_warn("sus_mount: d_path not found - only mnt_devname is checked, meta-overlayfs style mounts will NOT be marked\n");
     /* The id side must own real ids; each missing symbol is named explicitly and
@@ -2413,22 +2413,22 @@ int susfs_sus_mount_init(void)
     SUSFS_LOGI("sus_mount: 6.18 mount-id allocator: mnt_id_xa via %s, __xa_alloc via %s, __xa_erase via %s\n",
             sus_mount_xa_obj_src, sus_mount_xa_alloc_src, sus_mount_xa_erase_src);
     if (!sus_mount_mnt_id_xa)
-        pr_warn("sus_mount: mnt_id_xa not supplied (neither kallsyms nor the loader has the name) - KSU mounts will NOT be marked, threshold stays false (feature does nothing)\n");
+        pr_warn("sus_mount: mnt_id_xa not supplied (neither kallsyms nor the loader has the name) - XFG mounts will NOT be marked, threshold stays false (feature does nothing)\n");
     if (!pfn_xa_alloc)
-        pr_warn("sus_mount: __xa_alloc not supplied - KSU mounts will NOT be marked, threshold stays false (feature does nothing)\n");
+        pr_warn("sus_mount: __xa_alloc not supplied - XFG mounts will NOT be marked, threshold stays false (feature does nothing)\n");
     if (!pfn_xa_erase)
-        pr_warn("sus_mount: __xa_erase not supplied - KSU mounts will NOT be marked, threshold stays false (feature does nothing)\n");
+        pr_warn("sus_mount: __xa_erase not supplied - XFG mounts will NOT be marked, threshold stays false (feature does nothing)\n");
 #else
     if (!sus_mount_mnt_id_ida)
-        pr_warn("sus_mount: mnt_id_ida not found - KSU mounts will NOT be marked, threshold stays false (feature does nothing)\n");
+        pr_warn("sus_mount: mnt_id_ida not found - XFG mounts will NOT be marked, threshold stays false (feature does nothing)\n");
     if (!pfn_ida_alloc_range)
-        pr_warn("sus_mount: ida_alloc_range not found - KSU mounts will NOT be marked, threshold stays false (feature does nothing)\n");
+        pr_warn("sus_mount: ida_alloc_range not found - XFG mounts will NOT be marked, threshold stays false (feature does nothing)\n");
     if (!pfn_ida_free)
-        pr_warn("sus_mount: ida_free not found - KSU mounts will NOT be marked, threshold stays false (feature does nothing)\n");
+        pr_warn("sus_mount: ida_free not found - XFG mounts will NOT be marked, threshold stays false (feature does nothing)\n");
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
     if (!sus_mount_namespace_sem)
-        pr_warn("sus_mount: namespace_sem not found - the namespace scan will refuse to walk, so KSU mounts will NOT be marked (feature does nothing)\n");
+        pr_warn("sus_mount: namespace_sem not found - the namespace scan will refuse to walk, so XFG mounts will NOT be marked (feature does nothing)\n");
     if (!pfn_put_mnt_ns)
         pr_warn("sus_mount: put_mnt_ns not found - a namespace cloned after the enable is not recorded, so its mounts' ids are only learned by a later scan\n");
 #endif
@@ -2437,12 +2437,12 @@ int susfs_sus_mount_init(void)
      * mounts during post-fs-data; the LKM mirrors that: no hook until
      * CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS enables it.  The id assignment
      * itself is not gated on that flag - the hook compares ids, so the mounts
-     * have to carry KSU ids before it is switched on (and the next enable
+     * have to carry XFG ids before it is switched on (and the next enable
      * rescans anyway, which picks up mounts created since load). */
     SUSFS_LOGI("sus_mount: disabled by default (enable via CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS)\n");
 
     /* Which mounts count as ours, before anything looks at them: the built-in default
-     * is KernelSU's module store.  The list is runtime configurable (hide_mounts /
+     * is XiaoFeng's module store.  The list is runtime configurable (hide_mounts /
      * /proc/susfs_hide_mounts) - a container at /data/local/tmp/ubuntu2 needs its own
      * prefix to be hidden at all. */
     {
@@ -2454,7 +2454,7 @@ int susfs_sus_mount_init(void)
         sus_mount_keep_commit(staged, 1);
     }
 
-    (void)sus_mount_mark_ksu_mounts();
+    (void)sus_mount_mark_xfg_mounts();
 
     if (susfs_control_node_allowed()) {
         sus_mount_keep_entry = proc_create("susfs_hide_mounts", 0777, NULL,
@@ -2696,12 +2696,12 @@ void susfs_sus_mount_supercall(void __user **arg)
             info.err = rc;
             goto out;
         }
-        /* Only now does the threshold matter, so mark the KSU mounts (this also catches
+        /* Only now does the threshold matter, so mark the XFG mounts (this also catches
          * everything mounted since the module was loaded).  A failed scan is REPORTED, not just
-         * logged: with no mount carrying a KSU-range id the threshold never matches, so nothing
+         * logged: with no mount carrying a XFG-range id the threshold never matches, so nothing
          * is hidden while the hook stays live - "enabled, does nothing", which a caller cannot
-         * see from err=0.  (A scan that found zero KSU mounts is not a failure: rc==0.) */
-        rc = sus_mount_mark_ksu_mounts();
+         * see from err=0.  (A scan that found zero XFG mounts is not a failure: rc==0.) */
+        rc = sus_mount_mark_xfg_mounts();
         if (rc < 0) {
             pr_warn("sus_mount: scan on enable failed %d - hook is live but no mount was marked, reporting the failure to userspace\n",
                     rc);

@@ -30,7 +30,7 @@ struct seccomp_filter {
 	wait_queue_head_t wqh;
 };
 
-void ksu_seccomp_clear_cache(struct seccomp_filter *filter, int nr)
+void xfg_seccomp_clear_cache(struct seccomp_filter *filter, int nr)
 {
     if (!filter) {
         return;
@@ -47,7 +47,7 @@ void ksu_seccomp_clear_cache(struct seccomp_filter *filter, int nr)
 #endif
 }
 
-void ksu_seccomp_allow_cache(struct seccomp_filter *filter, int nr)
+void xfg_seccomp_allow_cache(struct seccomp_filter *filter, int nr)
 {
     if (!filter) {
         return;

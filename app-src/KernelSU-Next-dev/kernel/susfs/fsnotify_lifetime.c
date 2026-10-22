@@ -210,12 +210,12 @@ int susfs_sb_watch_init(void (*release)(struct super_block *))
         pr_err("sus_path: fsnotify lifetime ABI validation failed: %d\n", ret);
         return ret;
     }
-    susfs_alloc_group_fn = ksu_resolve_symbol_for_functable_hook("fsnotify_alloc_group");
-    susfs_add_mark_fn = ksu_resolve_symbol_for_functable_hook("fsnotify_add_mark");
-    susfs_init_mark_fn = ksu_resolve_symbol_for_functable_hook("fsnotify_init_mark");
-    susfs_put_mark_fn = ksu_resolve_symbol_for_functable_hook("fsnotify_put_mark");
-    susfs_destroy_group_fn = ksu_resolve_symbol_for_functable_hook("fsnotify_destroy_group");
-    susfs_wait_marks_fn = ksu_resolve_symbol_for_functable_hook("fsnotify_wait_marks_destroyed");
+    susfs_alloc_group_fn = xfg_resolve_symbol_for_functable_hook("fsnotify_alloc_group");
+    susfs_add_mark_fn = xfg_resolve_symbol_for_functable_hook("fsnotify_add_mark");
+    susfs_init_mark_fn = xfg_resolve_symbol_for_functable_hook("fsnotify_init_mark");
+    susfs_put_mark_fn = xfg_resolve_symbol_for_functable_hook("fsnotify_put_mark");
+    susfs_destroy_group_fn = xfg_resolve_symbol_for_functable_hook("fsnotify_destroy_group");
+    susfs_wait_marks_fn = xfg_resolve_symbol_for_functable_hook("fsnotify_wait_marks_destroyed");
     if (!susfs_alloc_group_fn || !susfs_add_mark_fn || !susfs_init_mark_fn ||
         !susfs_put_mark_fn || !susfs_destroy_group_fn || !susfs_wait_marks_fn)
         return -EOPNOTSUPP;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * susfs_hide_syms.c - hide ksu/susfs symbols from /proc/kallsyms (SUSFS HIDE_KSU_SUSFS_SYMBOLS feature), LKM port.
- * Upstream patches kernel/kallsyms.c s_show() to skip symbols whose name starts with ksu_/__ksu_/susfs_/ksud/...  s_show is
+ * susfs_hide_syms.c - hide xfg/susfs symbols from /proc/kallsyms (SUSFS HIDE_XFG_SUSFS_SYMBOLS feature), LKM port.
+ * Upstream patches kernel/kallsyms.c s_show() to skip symbols whose name starts with xfg_/__xfg_/susfs_/xfgd/...  s_show is
  * static but sits in the kallsyms_op.show seq_operations pointer, so LTO keeps an out-of-line copy and a kprobe can hang
  * on it.  A matching prefix returns early (regs->regs[0] = 0, regs->pc = x30), so the line is never printed - covering
  * BOTH core-kernel and module symbols, since the whole body is skipped before it branches on module_name.  On by default
@@ -22,7 +22,7 @@
 #include "susfs.h"		/* sus_path_add_self_hidden / sus_path_del_path */
 #include "symbol_resolver.h"	/* find_kernel_symbol_exact (kallsyms_op) */
 #include "susfs_kprobe.h"	/* susfs_kp_forget_addr: a probe struct must be usable twice */
-#include "ksu_allow_gate.h"	/* the control-node gate is su's own */
+#include "xfg_allow_gate.h"	/* the control-node gate is su's own */
 
 /* ---- hide_modules: filter other kernel modules out of /proc/modules ----
  * /proc/modules is world-readable (0444) and lists every loaded module, so a checker that greps it sees the whole set
@@ -36,7 +36,7 @@
  * house pattern of the control nodes: 0777 so DAC passes and sus_path's hidden set is the only answer (ENOENT,
  * indistinguishable from "no such file"), plus a uid check in open() AND write() so a passed-on fd is not a way in.  The
  * default list holds just this module, because a built-in SUSFS has no module entry; `clear` is the debugging mode.
- * Not a new CMD_SUSFS_* command: that id space is shared with KernelSU's own copy of SUSFS and a new id there is a
+ * Not a new CMD_SUSFS_* command: that id space is shared with XiaoFeng's own copy of SUSFS and a new id there is a
  * compatibility risk that buys nothing. */
 #define HIDE_MODULES_MAX 16
 #define HIDE_MODULES_CMDLINE (HIDE_MODULES_MAX * (MODULE_NAME_LEN + 1) + 96)
@@ -525,10 +525,10 @@ struct kallsym_iter_local {
 
 /* prefixes to hide (matches upstream's list) */
 static const char *const hide_prefixes[] = {
-	"ksu_", "__ksu_", "susfs_", "susfs_guard_lkm", "ksud",
-	"is_ksu_", "is_manager_", "escape_to_", "setup_selinux",
-	"track_throne", "on_post_fs_data", "try_umount", "kernelsu",
-	"__initcall__kmod_kernelsu", "apply_kernelsu", "handle_sepolicy",
+	"xfg_", "__xfg_", "susfs_", "susfs_guard_lkm", "xfgd",
+	"is_xfg_", "is_manager_", "escape_to_", "setup_selinux",
+	"track_throne", "on_post_fs_data", "try_umount", "xiaofeng",
+	"__initcall__kmod_xiaofeng", "apply_xiaofeng", "handle_sepolicy",
 	"getenforce", "setenforce", "is_zygote",
 };
 
@@ -541,9 +541,9 @@ static bool name_should_hide(const char *name)
 			return true;
 
 	/* Substring form for the names whose prefix differs from the list above.  Measured: with the prefix rules alone a
-	 * 257 -> 7 sweep left anon_ksu_fops, anon_ksu_ioctl(.cfi_jt), anon_ksu_release(.cfi_jt), setup_ksu_cred and
-	 * is_task_ksu_domain visible - each a plain "KernelSU is loaded here" tell in /proc/kallsyms. */
-	if (strstr(name, "ksu") || strstr(name, "susfs"))
+	 * 257 -> 7 sweep left anon_xfg_fops, anon_xfg_ioctl(.cfi_jt), anon_xfg_release(.cfi_jt), setup_xfg_cred and
+	 * is_task_xfg_domain visible - each a plain "XiaoFeng is loaded here" tell in /proc/kallsyms. */
+	if (strstr(name, "xfg") || strstr(name, "susfs"))
 		return true;
 
 	return false;
@@ -594,7 +594,7 @@ static int hide_syms_s_show_pre(struct kprobe *kp, struct pt_regs *regs)
 	if (!iter->name[0])
 		return 0;
 
-	/* Two different features, counted apart: the prefix list is upstream's HIDE_KSU_SUSFS_SYMBOLS (KernelSU's names),
+	/* Two different features, counted apart: the prefix list is upstream's HIDE_XFG_SUSFS_SYMBOLS (XiaoFeng's names),
 	 * while the module_name test is hide_modules, which filters the lines of whichever modules the operator listed -
 	 * module symbols carry their own spelling (e.g. __kstrtab_foo) with the module's name in module_name. */
 	if (name_should_hide(iter->name)) {
@@ -621,7 +621,7 @@ static int hide_syms_s_show_pre(struct kprobe *kp, struct pt_regs *regs)
  * which is why the body is validated rather than assuming every mismatch is a CFI jump-table thunk.
  *
  * Validation failure falls back to registration BY NAME, not to doing nothing: that path was
- * measured to filter kallsyms on one device (grep -cE 'susfs_|ksu_' /proc/kallsyms went 257 -> 0),
+ * measured to filter kallsyms on one device (grep -cE 'susfs_|xfg_' /proc/kallsyms went 257 -> 0),
  * and it is the fallback rather than the primary path only because the name selects another s_show
  * on some kernels.  On that path kallsyms_op_target stays NULL, which is how the handler knows to
  * SKIP the m->op check - so the only gate left is hide_syms_iter_plausible(), and that is a
@@ -676,7 +676,7 @@ static bool m_show_registered;
  * (commonly a stale export of a different tree).  A wrong CONFIG guess cannot be caught at load; it
  * would only decide which branch this runs, so the decision is made at run time, on the evidence.
  *
- * Order matters: the table value is validated AS-IS first (ksu_symbol_is_start()), because following
+ * Order matters: the table value is validated AS-IS first (xfg_symbol_is_start()), because following
  * a branch out of a body that is itself valid would redirect the probe away from it - a body may
  * legitimately start with `bti c ; b <target>` (an alias or thunk named after this very function).
  * Only when that fails is the value treated as an entry stub: skip an optional `bti c`, follow the
@@ -701,7 +701,7 @@ static int __nocfi noinline hide_syms_resolve_show(struct kprobe *kp,
 		return -EINVAL;
 
 	target = show;
-	if (!ksu_symbol_is_start(show, symbol_name)) {
+	if (!xfg_symbol_is_start(show, symbol_name)) {
 		u32 insn;
 
 		pc = show;
@@ -715,7 +715,7 @@ static int __nocfi noinline hide_syms_resolve_show(struct kprobe *kp,
 		if ((insn & 0xfc000000) != 0x14000000)	/* not an unconditional branch: no jump to follow */
 			return -EINVAL;
 		target = pc + (long)((s32)(insn << 6) >> 4);
-		if (!target || (target & 3) || !ksu_symbol_is_start(target, symbol_name))
+		if (!target || (target & 3) || !xfg_symbol_is_start(target, symbol_name))
 			return -EINVAL;
 		SUSFS_LOGI("susfs_hide_syms: %s.show=%px is an entry stub - body at %px\n",
 				table_name, (void *)show, (void *)target);
@@ -774,7 +774,7 @@ int susfs_hide_syms_init(void)
 	}
 	rc = register_kprobe(&kp_s_show);
 	if (rc) {
-		pr_warn("susfs_hide_syms: cannot arm kallsyms s_show (%d) - /proc/kallsyms keeps listing susfs_/ksu_ symbols\n",
+		pr_warn("susfs_hide_syms: cannot arm kallsyms s_show (%d) - /proc/kallsyms keeps listing susfs_/xfg_ symbols\n",
 				rc);
 		susfs_kp_forget_addr(&kp_s_show);
 		return rc;

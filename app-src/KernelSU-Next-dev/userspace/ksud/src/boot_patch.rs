@@ -22,7 +22,7 @@ use crate::feature_id::{FeatureId, parse_feature_id};
 #[cfg(target_os = "android")]
 mod android {
     use super::Result;
-    pub(super) use crate::defs::{BACKUP_FILENAME, KSU_BACKUP_DIR, KSU_BACKUP_FILE_PREFIX};
+    pub(super) use crate::defs::{BACKUP_FILENAME, XFG_BACKUP_DIR, XFG_BACKUP_FILE_PREFIX};
     use android_bootimg::cpio::{Cpio, CpioEntry};
     use anyhow::{Context, anyhow, bail, ensure};
     use regex_lite::Regex;
@@ -123,10 +123,10 @@ mod android {
 
     pub(super) fn do_backup(cpio: &mut Cpio, image: &Path) -> Result<()> {
         let sha1 = calculate_sha1(image)?;
-        let filename = format!("{KSU_BACKUP_FILE_PREFIX}{sha1}");
+        let filename = format!("{XFG_BACKUP_FILE_PREFIX}{sha1}");
 
         println!("- Backup stock boot image");
-        let target = format!("{KSU_BACKUP_DIR}{filename}");
+        let target = format!("{XFG_BACKUP_DIR}{filename}");
         let mut target_file = OpenOptions::new()
             .create(true)
             .truncate(true)
@@ -152,8 +152,8 @@ mod android {
 
     pub(super) fn clean_backup(sha1: &str) -> Result<()> {
         println!("- Clean up backup");
-        let backup_name = format!("{KSU_BACKUP_FILE_PREFIX}{sha1}");
-        let dir = std::fs::read_dir(KSU_BACKUP_DIR)?;
+        let backup_name = format!("{XFG_BACKUP_FILE_PREFIX}{sha1}");
+        let dir = std::fs::read_dir(XFG_BACKUP_DIR)?;
         for entry in dir.flatten() {
             let path = entry.path();
             if !path.is_file() {
@@ -162,7 +162,7 @@ mod android {
             if let Some(name) = path.file_name() {
                 let name = name.to_string_lossy().to_string();
                 if name != backup_name
-                    && name.starts_with(KSU_BACKUP_FILE_PREFIX)
+                    && name.starts_with(XFG_BACKUP_FILE_PREFIX)
                     && std::fs::remove_file(path).is_ok()
                 {
                     println!("- removed {name}");
@@ -456,7 +456,7 @@ pub struct BootPatchArgs {
     pub cmdline: Option<String>,
 
     #[command(flatten)]
-    config: KsuConfigArgs,
+    config: XfgConfigArgs,
 
     /// Force enable adbd and disable adbd auth
     #[arg(long, default_value = "false")]
@@ -466,7 +466,7 @@ pub struct BootPatchArgs {
     #[arg(long, required = false)]
     adb_debug_prop: Option<String>,
 
-    /// Do not (re-)install kernelsu, only modify configs (allow_shell, etc.)
+    /// Do not (re-)install the kernel module, only modify configs (allow_shell, etc.)
     #[arg(long, default_value = "false")]
     no_install: bool,
 
@@ -479,10 +479,10 @@ pub struct BootPatchArgs {
     ramdisk: bool,
 }
 
-/// KernelSU module params, stored in ramdisk `/ksu_config` (boot-patch) or the
+/// XiaoFeng module params, stored in ramdisk `/xfg_config` (boot-patch) or the
 /// injected capsule (boot-patch-v2).
 #[derive(clap::Args, Debug, Default)]
-pub struct KsuConfigArgs {
+pub struct XfgConfigArgs {
     /// Always allow shell to get root permission
     #[arg(long, default_value = "false")]
     allow_shell: bool,
@@ -514,7 +514,7 @@ pub struct KsuConfigArgs {
 /// silently truncated there, so reject it on the host instead.
 const MAX_BLOCK_MODULES_LEN: usize = 255;
 
-impl KsuConfigArgs {
+impl XfgConfigArgs {
     /// Validate options whose full value is only known after joining. Call
     /// before `apply` so the user gets an error instead of the kernel silently
     /// truncating an over-long list (which would leave some modules unblocked).
@@ -732,7 +732,7 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             patcher.replace_kernel(Box::new(Cursor::new(kernel_data)), false);
         }
 
-        let kernelsu_ko: Box<dyn AsRef<[u8]>> = if no_install {
+        let xiaofeng_ko: Box<dyn AsRef<[u8]>> = if no_install {
             Box::new(Vec::<u8>::new())
         } else if let Some(kmod_path) = kmod {
             Box::new(map_file(&kmod_path)?)
@@ -740,30 +740,30 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             #[cfg(target_os = "android")]
             {
                 println!("- KMI: {kmi}");
-                let name = format!("{kmi}_kernelsu.ko");
+                let name = format!("{kmi}_xiaofeng.ko");
                 assets::get_asset(&name).with_context(|| format!("Failed to load {name}"))?
             }
             #[cfg(not(target_os = "android"))]
             {
                 println!("- KMI: {kmi}");
                 println!("- Arch: {arch}");
-                let name = format!("{arch}/{kmi}_kernelsu.ko");
+                let name = format!("{arch}/{kmi}_xiaofeng.ko");
                 assets::get_asset(&name).with_context(|| format!("Failed to load {name}"))?
             }
         };
 
-        let ksu_init: Box<dyn AsRef<[u8]>> = if no_install {
+        let xfg_init: Box<dyn AsRef<[u8]>> = if no_install {
             Box::new(Vec::<u8>::new())
         } else if let Some(init_path) = init {
             Box::new(map_file(&init_path)?)
         } else {
             #[cfg(not(target_os = "android"))]
             {
-                assets::get_asset(&format!("{arch}/ksuinit")).context("Failed to load ksuinit")?
+                assets::get_asset(&format!("{arch}/xfginit")).context("Failed to load xfginit")?
             }
             #[cfg(target_os = "android")]
             {
-                assets::get_asset("ksuinit").context("Failed to load ksuinit")?
+                assets::get_asset("xfginit").context("Failed to load xfginit")?
             }
         };
 
@@ -781,18 +781,18 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
                 "Cannot work with Magisk patched image"
             );
 
-            println!("- Adding KernelSU LKM");
-            let is_kernelsu_patched = cpio.exists("kernelsu.ko");
+            println!("- Adding XiaoFeng LKM");
+            let is_xiaofeng_patched = cpio.exists("xiaofeng.ko");
 
-            if !is_kernelsu_patched && cpio.exists("init") {
+            if !is_xiaofeng_patched && cpio.exists("init") {
                 cpio.mv("init", "init.real")?;
             }
 
-            cpio.add("init", CpioEntry::regular(0o755, ksu_init))?;
-            cpio.add("kernelsu.ko", CpioEntry::regular(0o755, kernelsu_ko))?;
+            cpio.add("init", CpioEntry::regular(0o755, xfg_init))?;
+            cpio.add("xiaofeng.ko", CpioEntry::regular(0o755, xiaofeng_ko))?;
 
             #[cfg(target_os = "android")]
-            if !is_kernelsu_patched
+            if !is_xiaofeng_patched
                 && flash
                 && let Err(e) = do_backup(&mut cpio, &boot_image_file)
             {
@@ -800,24 +800,24 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             }
         }
 
-        let mut ksu_config: Vec<String> = cpio
-            .entry_by_name("ksu_config")
+        let mut xfg_config: Vec<String> = cpio
+            .entry_by_name("xfg_config")
             .and_then(CpioEntry::data)
             .and_then(|v| str::from_utf8(v).ok())
             .map(|v| v.split(' ').map(std::borrow::ToOwned::to_owned).collect())
             .unwrap_or_default();
 
         config.validate()?;
-        config.apply(&mut ksu_config);
+        config.apply(&mut xfg_config);
         if let Some(bundled) = bundled_lkm {
-            set_config_flag(&mut ksu_config, "bundled LKM", "bundled=1", bundled);
+            set_config_flag(&mut xfg_config, "bundled LKM", "bundled=1", bundled);
         }
 
-        if ksu_config.is_empty() {
-            cpio.rm("ksu_config", false);
+        if xfg_config.is_empty() {
+            cpio.rm("xfg_config", false);
         } else {
-            let data = ksu_config.join(" ").into_bytes();
-            cpio.add("ksu_config", CpioEntry::regular(0o644, Box::new(data)))?;
+            let data = xfg_config.join(" ").into_bytes();
+            cpio.add("xfg_config", CpioEntry::regular(0o644, Box::new(data)))?;
         }
 
         // remove legacy config file
@@ -891,7 +891,7 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             let output_dir = out.unwrap_or(std::env::current_dir()?);
             let name = out_name.unwrap_or_else(|| {
                 let now = chrono::Utc::now();
-                format!("kernelsu_next_patched_{}.img", now.format("%Y%m%d_%H%M%S"))
+                format!("xiaofeng_next_patched_{}.img", now.format("%Y%m%d_%H%M%S"))
             });
             let output_image = output_dir.join(name);
             std::fs::write(&output_image, &new_boot_bytes).context("write out new boot failed")?;
@@ -990,8 +990,8 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
         };
 
     ensure!(
-        cpio.exists("kernelsu.ko"),
-        "boot image is not patched by KernelSU"
+        cpio.exists("xiaofeng.ko"),
+        "boot image is not patched by XiaoFeng"
     );
 
     #[cfg(target_os = "android")]
@@ -1002,7 +1002,7 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
         let sha = String::from_utf8(backup_file.data().unwrap_or_default().to_vec())?;
         let sha = sha.trim();
         let backup_path =
-            PathBuf::from(KSU_BACKUP_DIR).join(format!("{KSU_BACKUP_FILE_PREFIX}{sha}"));
+            PathBuf::from(XFG_BACKUP_DIR).join(format!("{XFG_BACKUP_FILE_PREFIX}{sha}"));
         if backup_path.is_file() {
             println!("- Using backup file {}", backup_path.display());
             stock_boot = Some(backup_path);
@@ -1028,12 +1028,12 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
                 stock_source = Some(stock_path);
                 bytes
             } else {
-                rebuild_without_ksu(&boot_image, &mut cpio, vendor_ramdisk_idx)?
+                rebuild_without_xfg(&boot_image, &mut cpio, vendor_ramdisk_idx)?
             }
         }
         #[cfg(not(target_os = "android"))]
         {
-            rebuild_without_ksu(&boot_image, &mut cpio, vendor_ramdisk_idx)?
+            rebuild_without_xfg(&boot_image, &mut cpio, vendor_ramdisk_idx)?
         }
     };
     drop(boot_image);
@@ -1059,7 +1059,7 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
         let output_dir = out.unwrap_or(std::env::current_dir()?);
         let name = out_name.unwrap_or_else(|| {
             let now = chrono::Utc::now();
-            format!("kernelsu_next_restore_{}.img", now.format("%Y%m%d_%H%M%S"))
+            format!("xiaofeng_next_restore_{}.img", now.format("%Y%m%d_%H%M%S"))
         });
         let output_image = output_dir.join(name);
         std::fs::write(&output_image, &new_boot_bytes).context("copy out new boot failed")?;
@@ -1071,13 +1071,13 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
     Ok(())
 }
 
-fn rebuild_without_ksu(
+fn rebuild_without_xfg(
     boot_image: &BootImage<'_>,
     cpio: &mut Cpio,
     vendor_ramdisk_idx: Option<usize>,
 ) -> Result<Vec<u8>> {
-    println!("- Removing KernelSU from boot image");
-    cpio.rm("kernelsu.ko", false);
+    println!("- Removing XiaoFeng from boot image");
+    cpio.rm("xiaofeng.ko", false);
     if cpio.exists("init.real") {
         cpio.mv("init.real", "init")?;
     }
@@ -1122,7 +1122,7 @@ mod block_modules_tests {
 
     #[test]
     fn apply_writes_and_clears_block_modules() {
-        let args = KsuConfigArgs {
+        let args = XfgConfigArgs {
             block_module: vec!["vr".to_owned(), "vklp".to_owned()],
             ..Default::default()
         };
@@ -1133,14 +1133,14 @@ mod block_modules_tests {
         assert!(config.contains(&"bundled=1".to_owned()));
 
         // Omitting the option removes a previously written entry.
-        let empty = KsuConfigArgs::default();
+        let empty = XfgConfigArgs::default();
         empty.apply(&mut config);
         assert!(!config.iter().any(|v| v.starts_with("block_modules=")));
     }
 
     #[test]
     fn apply_replaces_existing_block_modules() {
-        let args = KsuConfigArgs {
+        let args = XfgConfigArgs {
             block_module: vec!["vr".to_owned()],
             ..Default::default()
         };
@@ -1160,7 +1160,7 @@ mod block_modules_tests {
     fn apply_keeps_sibling_keys_with_shared_prefix() {
         // A key that merely starts with "block_modules" but is not the exact
         // "block_modules=" entry must not be dropped by retain().
-        let args = KsuConfigArgs {
+        let args = XfgConfigArgs {
             block_module: vec!["vr".to_owned()],
             ..Default::default()
         };
@@ -1176,18 +1176,18 @@ mod block_modules_tests {
         // value budget must be rejected rather than silently truncated.
         let names: Vec<String> = (0..30).map(|i| format!("module_name_{i:03}")).collect();
         assert!(names.join(",").len() > MAX_BLOCK_MODULES_LEN);
-        let args = KsuConfigArgs {
+        let args = XfgConfigArgs {
             block_module: names,
             ..Default::default()
         };
         assert!(args.validate().is_err());
 
         // A short list is accepted.
-        let ok = KsuConfigArgs {
+        let ok = XfgConfigArgs {
             block_module: vec!["vr".to_owned(), "mkp".to_owned()],
             ..Default::default()
         };
         assert!(ok.validate().is_ok());
-        assert!(KsuConfigArgs::default().validate().is_ok());
+        assert!(XfgConfigArgs::default().validate().is_ok());
     }
 }

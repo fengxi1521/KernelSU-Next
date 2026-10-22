@@ -1,20 +1,20 @@
-#ifndef __KSU_H_TP_MARKER
-#define __KSU_H_TP_MARKER
+#ifndef __XFG_H_TP_MARKER
+#define __XFG_H_TP_MARKER
 
 #include <linux/version.h>
 #include <linux/sched.h>
 #include <linux/thread_info.h>
 
 // Process marking for tracepoint
-void ksu_mark_all_process(void);
-void ksu_unmark_all_process(void);
-void ksu_mark_running_process(void);
+void xfg_mark_all_process(void);
+void xfg_unmark_all_process(void);
+void xfg_mark_running_process(void);
 
 // Per-task mark operations
-int ksu_get_task_mark(pid_t pid);
-int ksu_set_task_mark(pid_t pid, bool mark);
+int xfg_get_task_mark(pid_t pid);
+int xfg_set_task_mark(pid_t pid, bool mark);
 
-static inline void ksu_set_task_tracepoint_flag(struct task_struct *t)
+static inline void xfg_set_task_tracepoint_flag(struct task_struct *t)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
     set_task_syscall_work(t, SYSCALL_TRACEPOINT);
@@ -23,7 +23,7 @@ static inline void ksu_set_task_tracepoint_flag(struct task_struct *t)
 #endif
 }
 
-static inline void ksu_clear_task_tracepoint_flag(struct task_struct *t)
+static inline void xfg_clear_task_tracepoint_flag(struct task_struct *t)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
     clear_task_syscall_work(t, SYSCALL_TRACEPOINT);
@@ -32,16 +32,16 @@ static inline void ksu_clear_task_tracepoint_flag(struct task_struct *t)
 #endif
 }
 
-void ksu_clear_task_tracepoint_flag_if_needed(struct task_struct *t);
+void xfg_clear_task_tracepoint_flag_if_needed(struct task_struct *t);
 
 // Used by syscall_hook_manager kretprobe handlers
-void ksu_mark_running_process_locked(void);
+void xfg_mark_running_process_locked(void);
 
 // Tracepoint registration count management (for kretprobe handlers)
-int ksu_tp_marker_reg_count(void);
-void ksu_tp_marker_lock(unsigned long *flags);
-void ksu_tp_marker_unlock(unsigned long *flags);
-void ksu_tp_marker_inc_reg_count(void);
-void ksu_tp_marker_dec_reg_count(void);
+int xfg_tp_marker_reg_count(void);
+void xfg_tp_marker_lock(unsigned long *flags);
+void xfg_tp_marker_unlock(unsigned long *flags);
+void xfg_tp_marker_inc_reg_count(void);
+void xfg_tp_marker_dec_reg_count(void);
 
 #endif

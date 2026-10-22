@@ -12,11 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.xiao.feng.ui.util.module.LatestVersionInfo
 
 /**
- * @author weishu
+ * @author XiaoFeng
  * @date 2023/6/22.
  */
 @SuppressLint("Range")
@@ -69,7 +69,7 @@ fun checkNewVersion(preferSpoofed: Boolean? = null): LatestVersionInfo {
     // default null value if failed
     val defaultValue = LatestVersionInfo()
     runCatching {
-        ksuApp.okhttpClient.newCall(okhttp3.Request.Builder().url(url).build()).execute()
+        xfgApp.okhttpClient.newCall(okhttp3.Request.Builder().url(url).build()).execute()
             .use { response ->
                 if (!response.isSuccessful) {
                     return defaultValue

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * susfs_avc_spoof.c - hide the KernelSU su domain from SELinux AVC audit logs (SUSFS AVC_LOG_SPOOFING), LKM port: upstream
+ * susfs_avc_spoof.c - hide the XiaoFeng su domain from SELinux AVC audit logs (SUSFS AVC_LOG_SPOOFING), LKM port: upstream
  * prints a priv_app context in place of the su domain, hiding the "denied { ... } tcontext=u:r:su:s0" lines that root-hiding
  * detectors grep for.  Rewriting tsid in place makes the hooked function's own security_sid_to_context() emit the priv_app
  * context - equivalent to upstream's string swap.  The sids are resolved at init time (process context) via EXPORT_SYMBOL
@@ -20,11 +20,11 @@
 #include "susfs_log.h"
 #include "susfs.h"	/* susfs_expose_proc */
 #include "susfs_kprobe.h"
-#include "ksu_allow_gate.h"	/* the control-node gate is su's own */
+#include "xfg_allow_gate.h"	/* the control-node gate is su's own */
 
-/* module_param overrides for the two domains: the default su domain is the SukiSU variant ("ksu"), stock
- * KernelSU uses "su".  The sid is resolved at init time via security_secctx_to_secid(). */
-static char avc_su_ctx[128] = "u:r:ksu:s0";
+/* module_param overrides for the two domains: the default su domain is the SukiSU variant ("xfg"), stock
+ * XiaoFeng uses "su".  The sid is resolved at init time via security_secctx_to_secid(). */
+static char avc_su_ctx[128] = "u:r:xfg:s0";
 static char avc_priv_app_ctx[128] = "u:r:priv_app:s0:c512,c768";
 module_param_string(avc_su_ctx, avc_su_ctx, sizeof(avc_su_ctx), 0644);
 module_param_string(avc_priv_app_ctx, avc_priv_app_ctx, sizeof(avc_priv_app_ctx), 0644);

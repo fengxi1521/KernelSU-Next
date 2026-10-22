@@ -74,7 +74,7 @@ import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.navigation.EmptyDestinationsNavigator
 import com.xiao.feng.Natives
 import com.xiao.feng.R
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.xiao.feng.ui.component.ConfirmResult
 import com.xiao.feng.ui.component.SearchAppBar
 import com.xiao.feng.ui.component.rememberConfirmDialog
@@ -564,7 +564,7 @@ private fun ModuleList(
         val changelogResult = loadingDialog.withLoading {
             withContext(Dispatchers.IO) {
                 runCatching {
-                    ksuApp.okhttpClient.newCall(
+                    xfgApp.okhttpClient.newCall(
                         okhttp3.Request.Builder().url(changelogUrl).build()
                     ).execute().body!!.string()
                 }

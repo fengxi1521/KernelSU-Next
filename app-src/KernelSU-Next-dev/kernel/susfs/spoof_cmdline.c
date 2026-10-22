@@ -2,7 +2,7 @@
 /*
  * spoof_cmdline.c - spoof /proc/bootconfig (SUSFS SPOOF_CMDLINE_OR_BOOTCONFIG).  boot_config_proc_show()
  * (fs/proc/bootconfig.c) does `if (saved_boot_config) seq_puts(m, saved_boot_config);`, so rewriting the static
- * pointer spoofs the whole file; that variable is a static BSS pointer resolved at load time by ksud insmod
+ * pointer spoofs the whole file; that variable is a static BSS pointer resolved at load time by xfgd insmod
  * (kallsyms relocation, like selinux_state in kstat) and the write is atomic, so concurrent seq reads are safe.
  * The fake string is heap-allocated (kstrdup): the supercall ABI accepts up to 8192 bytes, and the insmod
  * parameter is copied to the heap as well so a later supercall can free it safely.
@@ -14,7 +14,7 @@
 #include "susfs_log.h"
 #include "susfs.h"	/* susfs_abi_path_ok */
 
-/* unexported static var; ksud insmod relocates it via kallsyms */
+/* unexported static var; xfgd insmod relocates it via kallsyms */
 extern char *saved_boot_config;
 
 /* The supercall's field is 8192 wide, but this insmod parameter cannot be: module_param_string()'s value goes through a
@@ -110,7 +110,7 @@ void susfs_spoof_cmdline_supercall(void __user **arg)
 	if (!info) {
 		/* The kprobe has already claimed the syscall and answered 0, so returning silently leaves the
 		 * caller's pre-seeded 126 (ERR_CMD_NOT_SUPPORTED) in place: the C tool then reports "please
-		 * enable SUSFS in kernel" for a command this kernel implements, and ksud's err==126 check turns
+		 * enable SUSFS in kernel" for a command this kernel implements, and xfgd's err==126 check turns
 		 * it into a silent success.  Upstream writes -ENOMEM here (fs/susfs.c:707-713); task_work
 		 * context, so the writeback is safe. */
 		err = -ENOMEM;

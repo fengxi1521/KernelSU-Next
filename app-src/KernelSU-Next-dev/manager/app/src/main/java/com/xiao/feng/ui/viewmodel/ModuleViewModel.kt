@@ -9,7 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.xiao.feng.ui.util.HanziToPinyin
 import com.xiao.feng.ui.util.getModuleSize
 import com.xiao.feng.ui.util.listModules
@@ -199,7 +199,7 @@ class ModuleViewModel : ViewModel() {
         val result = kotlin.runCatching {
             val url = m.updateJson
             Log.i(TAG, "checkUpdate url: $url")
-            val response = ksuApp.okhttpClient.newCall(
+            val response = xfgApp.okhttpClient.newCall(
                     okhttp3.Request.Builder().url(url).build()
                 ).execute()
             Log.d(TAG, "checkUpdate code: ${response.code}")

@@ -18,56 +18,56 @@
 #define INIT_PATH "/system/bin/init"
 
 // The runner is a static ELF embedded into .init.rodata by preinit/blob.S.
-extern const char ksu_preinit_runner_start[];
-extern const char ksu_preinit_runner_end[];
+extern const char xfg_preinit_runner_start[];
+extern const char xfg_preinit_runner_end[];
 
-static bool ksu_preinit_enabled = true;
-module_param_named(preinit, ksu_preinit_enabled, bool, 0);
+static bool xfg_preinit_enabled = true;
+module_param_named(preinit, xfg_preinit_enabled, bool, 0);
 
 // Owned here until PID 1 executes it; the init section holding the blob is
 // gone by then, so it lives in an unlinked shmem file.
-static struct file *ksu_preinit_file;
+static struct file *xfg_preinit_file;
 
-void __init ksu_preinit_init(void)
+void __init xfg_preinit_init(void)
 {
-    size_t size = ksu_preinit_runner_end - ksu_preinit_runner_start;
+    size_t size = xfg_preinit_runner_end - xfg_preinit_runner_start;
     struct file *file;
     loff_t pos = 0;
     ssize_t written;
 
-    if (!ksu_preinit_enabled) {
+    if (!xfg_preinit_enabled) {
         pr_info("preinit: disabled\n");
         return;
     }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
-    file = shmem_file_setup("ksu_preinit", size, EMPTY_VMA_FLAGS);
+    file = shmem_file_setup("xfg_preinit", size, EMPTY_VMA_FLAGS);
 #else
-    file = shmem_file_setup("ksu_preinit", size, 0);
+    file = shmem_file_setup("xfg_preinit", size, 0);
 #endif
     if (IS_ERR(file)) {
         pr_err("preinit: shmem_file_setup failed: %ld\n", PTR_ERR(file));
         return;
     }
 
-    written = kernel_write(file, ksu_preinit_runner_start, size, &pos);
+    written = kernel_write(file, xfg_preinit_runner_start, size, &pos);
     if (written != size) {
         pr_err("preinit: write runner failed: %zd\n", written);
         fput(file);
         return;
     }
 
-    ksu_preinit_file = file;
+    xfg_preinit_file = file;
     pr_info("preinit: runner staged (%zu bytes)\n", size);
 }
 
-bool ksu_preinit_enabled_param(void)
+bool xfg_preinit_enabled_param(void)
 {
-    return ksu_preinit_enabled;
+    return xfg_preinit_enabled;
 }
 
-void ksu_preinit_release(void)
+void xfg_preinit_release(void)
 {
-    struct file *file = xchg(&ksu_preinit_file, NULL);
+    struct file *file = xchg(&xfg_preinit_file, NULL);
 
     if (file) {
         pr_info("preinit: selinux_setup not seen, dropping runner\n");
@@ -75,9 +75,9 @@ void ksu_preinit_release(void)
     }
 }
 
-void ksu_preinit_exit(void)
+void xfg_preinit_exit(void)
 {
-    ksu_preinit_release();
+    xfg_preinit_release();
 }
 
 static bool is_selinux_setup(const char __user *const __user *argv_user)
@@ -96,7 +96,7 @@ static bool is_selinux_setup(const char __user *const __user *argv_user)
     return !strcmp(buf, expected);
 }
 
-bool ksu_preinit_handle_execve(const char __user **filename_user, const char __user *const __user *argv_user,
+bool xfg_preinit_handle_execve(const char __user **filename_user, const char __user *const __user *argv_user,
                                int orig_nr, struct pt_regs *regs, long *ret)
 {
     const char __user *orig_filename;
@@ -106,7 +106,7 @@ bool ksu_preinit_handle_execve(const char __user **filename_user, const char __u
     struct path p;
     int fd, len;
 
-    if (likely(!READ_ONCE(ksu_preinit_file)))
+    if (likely(!READ_ONCE(xfg_preinit_file)))
         return false;
 
     if (!filename_user || !*filename_user)
@@ -121,7 +121,7 @@ bool ksu_preinit_handle_execve(const char __user **filename_user, const char __u
         return false;
 
     // One shot: the runner's own exec of the real init must pass through.
-    file = xchg(&ksu_preinit_file, NULL);
+    file = xchg(&xfg_preinit_file, NULL);
     if (!file)
         return false;
 
@@ -138,7 +138,7 @@ bool ksu_preinit_handle_execve(const char __user **filename_user, const char __u
     len = snprintf(fd_path, sizeof(fd_path), "/proc/self/fd/%d", fd);
     if (kern_path(fd_path, LOOKUP_FOLLOW, &p)) {
         pr_err("preinit: %s not reachable, booting without preinit\n", fd_path);
-        ksu_close_fd(fd);
+        xfg_close_fd(fd);
         return false;
     }
     path_put(&p);
@@ -147,17 +147,17 @@ bool ksu_preinit_handle_execve(const char __user **filename_user, const char __u
     *filename_user = userspace_stack_buffer(fd_path, len + 1);
     if (!*filename_user) {
         *filename_user = orig_filename;
-        ksu_close_fd(fd);
+        xfg_close_fd(fd);
         return false;
     }
 
     pr_info("preinit: exec runner via %s\n", fd_path);
-    *ret = ksu_syscall_table[orig_nr](regs);
+    *ret = xfg_syscall_table[orig_nr](regs);
     if (*ret < 0) {
         pr_err("preinit: exec runner failed: %ld, booting without preinit\n", *ret);
         *filename_user = orig_filename;
-        ksu_close_fd(fd);
-        *ret = ksu_syscall_table[orig_nr](regs);
+        xfg_close_fd(fd);
+        *ret = xfg_syscall_table[orig_nr](regs);
     }
     return true;
 }

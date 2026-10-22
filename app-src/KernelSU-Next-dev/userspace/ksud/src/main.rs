@@ -29,7 +29,7 @@ mod hot_install;
 #[cfg(target_os = "android")]
 mod init_event;
 #[cfg(target_os = "android")]
-mod ksucalls;
+mod xfgcalls;
 #[cfg(target_os = "android")]
 mod late_load;
 mod lkm_image;
@@ -67,7 +67,7 @@ mod utils;
 
 #[cfg(target_os = "android")]
 #[allow(nonstandard_style, unused, unsafe_op_in_unsafe_fn)]
-mod ksu_uapi;
+mod xfg_uapi;
 
 fn main() -> anyhow::Result<()> {
     #[cfg(target_os = "android")]

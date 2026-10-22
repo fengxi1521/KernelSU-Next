@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* patch_memory.h - arbitrary kernel text patching (ported from KernelSU/SukiSU).
+/* patch_memory.h - arbitrary kernel text patching (ported from XiaoFeng/SukiSU).
  * Copyright (C) 2023 bmax121. All Rights Reserved. */
 
 #ifndef __SUSFS_PATCH_MEMORY_H
@@ -22,12 +22,12 @@
 #error "Unsupported arch"
 #endif
 
-#define KSU_PATCH_TEXT_FLUSH_DCACHE 1
-#define KSU_PATCH_TEXT_FLUSH_ICACHE 2
+#define XFG_PATCH_TEXT_FLUSH_DCACHE 1
+#define XFG_PATCH_TEXT_FLUSH_ICACHE 2
 
 unsigned long phys_from_virt(unsigned long addr, int *err);
-int ksu_patch_memory_init(void);
-int ksu_patch_text(void *dst, void *src, size_t len, int flags);
+int xfg_patch_memory_init(void);
+int xfg_patch_text(void *dst, void *src, size_t len, int flags);
 void *scan_call_to(void *start, size_t size, void *target);
 
 #endif

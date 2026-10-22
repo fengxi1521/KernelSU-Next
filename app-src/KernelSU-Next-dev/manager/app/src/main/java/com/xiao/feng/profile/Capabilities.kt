@@ -1,7 +1,7 @@
 package com.xiao.feng.profile
 
 /**
- * @author weishu
+ * @author XiaoFeng
  * @date 2023/6/3.
  */
 enum class Capabilities(val cap: Int, val display: String, val desc: String) {

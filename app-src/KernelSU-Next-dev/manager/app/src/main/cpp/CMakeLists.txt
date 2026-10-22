@@ -13,7 +13,7 @@ link_libraries(cxx::cxx)
 add_library(xfeng
         SHARED
         jni.cc
-        ksu.cc
+        xfg.cc
         )
 
 target_include_directories(xfeng PRIVATE .)

@@ -1,5 +1,5 @@
 [package]
-name = "ksud"
+name = "xfgd"
 version = "0.1.0"
 edition = "2024"
 
@@ -55,7 +55,7 @@ is_executable = "1"
 nom = "8"
 derive-new = "0.7"
 getopts = "0.2"
-ksuinit = { path = "../ksuinit" }
+xfginit = { path = "../xfginit" }
 prop-rs-android = { git = "https://github.com/KernelSU2/ksu_props", rev = "ddb6ee7294467f7f25bad2118e9e24eee104144b" }
 
 [profile.release]

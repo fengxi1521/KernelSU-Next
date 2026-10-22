@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.xiao.feng.ui.theme.AMOLED_BLACK
 
 /**
- * @author rifsxd
+ * @author XiaoFeng
  * @date 2025/6/2.
  */
 object MonetColorsProvider {

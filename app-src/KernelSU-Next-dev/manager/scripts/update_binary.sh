@@ -16,24 +16,24 @@ if [ ! "$ARCH" = "arm64-v8a" ]; then
     exit 1
 fi
 
-# Extract ksud
-unzip -o "$3" "lib/$ARCH/libksud.so" -d $TMPDIR >&2
+# Extract xfgd
+unzip -o "$3" "lib/$ARCH/libxfgd.so" -d $TMPDIR >&2
 
-KSUD="$TMPDIR/lib/$ARCH/libksud.so"
+XFGD="$TMPDIR/lib/$ARCH/libxfgd.so"
 
-chmod 755 "$KSUD"
+chmod 755 "$XFGD"
 
-# use ksud to install or uninstall
+# use xfgd to install or uninstall
 case "$3" in
   *uninstall*|*Uninstall*)
     ui_print "- Uninstalling XiaoFeng..."
-    "$KSUD" uninstall 2>&1 | while read -r line; do
+    "$XFGD" uninstall 2>&1 | while read -r line; do
       ui_print "$line"
     done
     ;;
   *)
     ui_print "- Installing XiaoFeng..."
-    "$KSUD" boot-patch --flash 2>&1 | while read -r line; do
+    "$XFGD" boot-patch --flash 2>&1 | while read -r line; do
       ui_print "$line"
     done
     ;;

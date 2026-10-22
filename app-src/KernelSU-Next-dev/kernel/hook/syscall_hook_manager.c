@@ -59,32 +59,32 @@ static void destroy_kretprobe(struct kretprobe **rp_ptr)
 static int syscall_regfunc_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
     unsigned long flags;
-    ksu_tp_marker_lock(&flags);
-    if (ksu_tp_marker_reg_count() < 1) {
+    xfg_tp_marker_lock(&flags);
+    if (xfg_tp_marker_reg_count() < 1) {
         // while install our tracepoint, mark our processes
-        ksu_mark_running_process_locked();
-    } else if (ksu_tp_marker_reg_count() == 1) {
+        xfg_mark_running_process_locked();
+    } else if (xfg_tp_marker_reg_count() == 1) {
         // while other tracepoint first added, mark all processes
-        ksu_mark_all_process();
+        xfg_mark_all_process();
     }
-    ksu_tp_marker_inc_reg_count();
-    ksu_tp_marker_unlock(&flags);
+    xfg_tp_marker_inc_reg_count();
+    xfg_tp_marker_unlock(&flags);
     return 0;
 }
 
 static int syscall_unregfunc_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
     unsigned long flags;
-    ksu_tp_marker_lock(&flags);
-    ksu_tp_marker_dec_reg_count();
-    if (ksu_tp_marker_reg_count() <= 0) {
+    xfg_tp_marker_lock(&flags);
+    xfg_tp_marker_dec_reg_count();
+    if (xfg_tp_marker_reg_count() <= 0) {
         // while no tracepoint left, unmark all processes
-        ksu_unmark_all_process();
-    } else if (ksu_tp_marker_reg_count() == 1) {
+        xfg_unmark_all_process();
+    } else if (xfg_tp_marker_reg_count() == 1) {
         // while just our tracepoint left, unmark disallowed processes
-        ksu_mark_running_process_locked();
+        xfg_mark_running_process_locked();
     }
-    ksu_tp_marker_unlock(&flags);
+    xfg_tp_marker_unlock(&flags);
     return 0;
 }
 
@@ -94,7 +94,7 @@ static struct kretprobe *syscall_unregfunc_rp = NULL;
 
 #ifdef CONFIG_HAVE_SYSCALL_TRACEPOINTS
 // sys_enter handler: redirect hooked syscalls to the dispatcher
-static void ksu_sys_enter_handler(void *data, struct pt_regs *regs, long id)
+static void xfg_sys_enter_handler(void *data, struct pt_regs *regs, long id)
 {
 #if defined(__x86_64__)
     if (unlikely(in_compat_syscall()))
@@ -103,32 +103,32 @@ static void ksu_sys_enter_handler(void *data, struct pt_regs *regs, long id)
 #endif
         return;
 
-    if (ksu_dispatcher_nr < 0)
+    if (xfg_dispatcher_nr < 0)
         return;
 
-    if (ksu_has_syscall_hook(id)) {
+    if (xfg_has_syscall_hook(id)) {
         struct pt_regs *current_regs = task_pt_regs(current);
 
 #if defined(__x86_64__)
         // Stash the original syscall number in ax.
         // We use ax because it currently just holds -ENOSYS and is safe to overwrite.
         current_regs->ax = id;
-        current_regs->orig_ax = ksu_dispatcher_nr;
+        current_regs->orig_ax = xfg_dispatcher_nr;
 #elif defined(__aarch64__)
         PT_REGS_ORIG_SYSCALL(current_regs) = id;
-        current_regs->syscallno = ksu_dispatcher_nr;
+        current_regs->syscallno = xfg_dispatcher_nr;
 #elif defined(__riscv)
         /* orig_a0 retains argument zero; a0 is the -ENOSYS return slot. */
-        ksu_riscv_redirect_syscall(current_regs, id, ksu_dispatcher_nr);
+        xfg_riscv_redirect_syscall(current_regs, id, xfg_dispatcher_nr);
 #endif
     }
 }
 #endif
 
-void __init ksu_syscall_hook_manager_init(void)
+void __init xfg_syscall_hook_manager_init(void)
 {
     int ret;
-    pr_info("hook_manager: ksu_hook_manager_init called\n");
+    pr_info("hook_manager: xfg_hook_manager_init called\n");
 
 #ifdef CONFIG_KRETPROBES
     syscall_regfunc_rp = init_kretprobe("syscall_regfunc", syscall_regfunc_handler);
@@ -136,16 +136,16 @@ void __init ksu_syscall_hook_manager_init(void)
 #endif
 
     // Register syscall hooks via dispatcher
-    ksu_register_syscall_hook(__NR_setresuid, ksu_hook_setresuid);
-    ksu_register_syscall_hook(__NR_execve, ksu_hook_execve);
-    ksu_register_syscall_hook(__NR_execveat, ksu_hook_execveat);
-    ksu_register_syscall_hook(__NR_newfstatat, ksu_hook_newfstatat);
-    ksu_register_syscall_hook(__NR_faccessat, ksu_hook_faccessat);
+    xfg_register_syscall_hook(__NR_setresuid, xfg_hook_setresuid);
+    xfg_register_syscall_hook(__NR_execve, xfg_hook_execve);
+    xfg_register_syscall_hook(__NR_execveat, xfg_hook_execveat);
+    xfg_register_syscall_hook(__NR_newfstatat, xfg_hook_newfstatat);
+    xfg_register_syscall_hook(__NR_faccessat, xfg_hook_faccessat);
 
 #ifdef CONFIG_HAVE_SYSCALL_TRACEPOINTS
-    ret = register_trace_prio_sys_enter(ksu_sys_enter_handler, NULL, INT_MIN);
+    ret = register_trace_prio_sys_enter(xfg_sys_enter_handler, NULL, INT_MIN);
 #ifndef CONFIG_KRETPROBES
-    ksu_mark_running_process_locked();
+    xfg_mark_running_process_locked();
 #endif
     if (ret) {
         pr_err("hook_manager: failed to register sys_enter tracepoint: %d\n", ret);
@@ -154,16 +154,16 @@ void __init ksu_syscall_hook_manager_init(void)
     }
 #endif
 
-    ksu_setuid_hook_init();
-    ksu_sucompat_init();
-    ksu_avc_spoof_init();
+    xfg_setuid_hook_init();
+    xfg_sucompat_init();
+    xfg_avc_spoof_init();
 }
 
-void __exit ksu_syscall_hook_manager_exit(void)
+void __exit xfg_syscall_hook_manager_exit(void)
 {
-    pr_info("hook_manager: ksu_hook_manager_exit called\n");
+    pr_info("hook_manager: xfg_hook_manager_exit called\n");
 #ifdef CONFIG_HAVE_SYSCALL_TRACEPOINTS
-    unregister_trace_sys_enter(ksu_sys_enter_handler, NULL);
+    unregister_trace_sys_enter(xfg_sys_enter_handler, NULL);
     tracepoint_synchronize_unregister();
     pr_info("hook_manager: sys_enter tracepoint unregistered\n");
 #endif
@@ -173,15 +173,15 @@ void __exit ksu_syscall_hook_manager_exit(void)
     destroy_kretprobe(&syscall_unregfunc_rp);
 #endif
 
-    ksu_unregister_syscall_hook(__NR_setresuid);
-    ksu_unregister_syscall_hook(__NR_execve);
-    ksu_unregister_syscall_hook(__NR_execveat);
-    ksu_unregister_syscall_hook(__NR_newfstatat);
-    ksu_unregister_syscall_hook(__NR_faccessat);
+    xfg_unregister_syscall_hook(__NR_setresuid);
+    xfg_unregister_syscall_hook(__NR_execve);
+    xfg_unregister_syscall_hook(__NR_execveat);
+    xfg_unregister_syscall_hook(__NR_newfstatat);
+    xfg_unregister_syscall_hook(__NR_faccessat);
 
-    ksu_syscall_hook_exit();
+    xfg_syscall_hook_exit();
 
-    ksu_sucompat_exit();
-    ksu_setuid_hook_exit();
-    ksu_avc_spoof_exit();
+    xfg_sucompat_exit();
+    xfg_setuid_hook_exit();
+    xfg_avc_spoof_exit();
 }

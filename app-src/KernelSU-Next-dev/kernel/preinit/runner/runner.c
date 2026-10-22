@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * KernelSU preinit runner.
+ * XiaoFeng preinit runner.
  *
  * The kernel swaps this static binary in for the first
  * "/system/bin/init selinux_setup" execve of PID 1. At that point first stage
@@ -21,14 +21,14 @@
 #ifndef INIT_PATH
 #define INIT_PATH "/system/bin/init"
 #endif
-#ifndef KSU_DIR_VOLD
-#define KSU_DIR_VOLD "/metadata/vold/ksu"
+#ifndef XFG_DIR_VOLD
+#define XFG_DIR_VOLD "/metadata/vold/xfg"
 #endif
-#ifndef KSU_DIR_WATCHDOG
-#define KSU_DIR_WATCHDOG "/metadata/watchdog/ksu"
+#ifndef XFG_DIR_WATCHDOG
+#define XFG_DIR_WATCHDOG "/metadata/watchdog/xfg"
 #endif
-#ifndef KSU_DIR_DEFAULT
-#define KSU_DIR_DEFAULT "/metadata/ksu"
+#ifndef XFG_DIR_DEFAULT
+#define XFG_DIR_DEFAULT "/metadata/xfg"
 #endif
 #ifndef KMSG_PATH
 #define KMSG_PATH "/dev/kmsg"
@@ -82,7 +82,7 @@ static __attribute__((format(printf, 1, 2))) void klog(const char *fmt, ...)
     va_list args;
     int n;
 
-    n = snprintf(buf, sizeof(buf), "ksu_preinit: ");
+    n = snprintf(buf, sizeof(buf), "xfg_preinit: ");
     va_start(args, fmt);
     n += vsnprintf(buf + n, sizeof(buf) - n - 1, fmt, args);
     va_end(args);
@@ -216,22 +216,22 @@ static bool is_charger_mode(void)
 
 /*
  * Returns true when preinit may run. The counter is bumped and synced before
- * any action runs; ksud resets it on boot-completed. If it cannot be
+ * any action runs; xfgd resets it on boot-completed. If it cannot be
  * persisted we refuse to run, otherwise a bad module could loop forever.
  *
  * Once BOOTCOUNT_LIMIT boots in a row did not complete, preinit is skipped
- * and the counter parks at BOOTCOUNT_LIMIT + 1. ksud leaves that value alone
+ * and the counter parks at BOOTCOUNT_LIMIT + 1. xfgd leaves that value alone
  * on boot-completed, so preinit stays off until its content changes or the
  * user resets it, instead of looping again on the next boot.
  */
-static bool bootcount_check_and_bump(const char *ksu_dir)
+static bool bootcount_check_and_bump(const char *xfg_dir)
 {
     char path[PATH_LEN], buf[16];
     long count = 0;
     bool run;
     int fd, n;
 
-    snprintf(path, sizeof(path), "%s/%s", ksu_dir, BOOTCOUNT_NAME);
+    snprintf(path, sizeof(path), "%s/%s", xfg_dir, BOOTCOUNT_NAME);
     if (read_file(path, buf, sizeof(buf)) > 0)
         count = atol(buf);
     if (count < 0)
@@ -257,7 +257,7 @@ static bool bootcount_check_and_bump(const char *ksu_dir)
     }
     close(fd);
 
-    fd = open(ksu_dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    fd = open(xfg_dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (fd >= 0) {
         fsync(fd);
         close(fd);
@@ -321,28 +321,28 @@ struct module_ctx {
 };
 
 /*
- * KernelSU driver fd, installed lazily on first use via the reboot-magic hook
- * (same mechanism ksud uses). Cached across modules; -1 once we know it is
+ * XiaoFeng driver fd, installed lazily on first use via the reboot-magic hook
+ * (same mechanism xfgd uses). Cached across modules; -1 once we know it is
  * unavailable so we only probe the kernel once.
  */
-static int ksu_driver_fd = -1;
-static int ksu_driver_probed;
+static int xfg_driver_fd = -1;
+static int xfg_driver_probed;
 
-static int ksu_get_driver_fd(void)
+static int xfg_get_driver_fd(void)
 {
     int fd = -1;
 
-    if (ksu_driver_probed)
-        return ksu_driver_fd;
-    ksu_driver_probed = 1;
+    if (xfg_driver_probed)
+        return xfg_driver_fd;
+    xfg_driver_probed = 1;
 
-    /* The KSU reboot kprobe writes the installed anon fd back into *arg. */
-    sys_reboot(KSU_INSTALL_MAGIC1, KSU_INSTALL_MAGIC2, 0, &fd);
+    /* The XFG reboot kprobe writes the installed anon fd back into *arg. */
+    sys_reboot(XFG_INSTALL_MAGIC1, XFG_INSTALL_MAGIC2, 0, &fd);
     if (fd >= 0)
-        ksu_driver_fd = fd;
+        xfg_driver_fd = fd;
     else
-        klog("ksu driver fd unavailable, insmod cannot bind non-exported symbols");
-    return ksu_driver_fd;
+        klog("xfg driver fd unavailable, insmod cannot bind non-exported symbols");
+    return xfg_driver_fd;
 }
 
 static int open_checked(const struct module_ctx *m, const char *path)
@@ -423,7 +423,7 @@ static uint64_t lookup_addrs[LOOKUP_BATCH];
 /* Resolve the queued symbols in one supercall and bind the ones found. */
 static int flush_lookup(const struct module_ctx *m, const char *path, int drv, uint32_t *n, int *bound)
 {
-    struct ksu_lookup_symbols_cmd cmd = {
+    struct xfg_lookup_symbols_cmd cmd = {
         .names = (unsigned long)lookup_names,
         .addrs = (unsigned long)lookup_addrs,
         .count = *n,
@@ -431,7 +431,7 @@ static int flush_lookup(const struct module_ctx *m, const char *path, int drv, u
     };
     uint32_t i;
     /* sys_ioctl returns -errno directly, otherwise the number found */
-    int ret = sys_ioctl(drv, KSU_IOCTL_LOOKUP_SYMBOLS, (unsigned long)&cmd);
+    int ret = sys_ioctl(drv, XFG_IOCTL_LOOKUP_SYMBOLS, (unsigned long)&cmd);
 
     if (ret < 0) {
         klog("[%s] insmod %s: symbol lookup failed: %d", m->id, path, -ret);
@@ -450,7 +450,7 @@ static int flush_lookup(const struct module_ctx *m, const char *path, int drv, u
 
 /*
  * Bind the module's undefined symbols to their addresses in the running
- * kernel, looked up through the KSU driver, so init_module accepts a module
+ * kernel, looked up through the XFG driver, so init_module accepts a module
  * that references non-exported symbols. Symbols the kernel does not know are
  * left undefined for init_module to resolve the regular (exported) way.
  * Returns the number of bound symbols, or -1 for a malformed image or a
@@ -534,12 +534,12 @@ static int do_insmod(const struct module_ctx *m, int argc, char **argv)
         return -1;
 
     /*
-     * Bind the module's non-exported symbols through the KSU symbol lookup
+     * Bind the module's non-exported symbols through the XFG symbol lookup
      * supercall, then load the patched private copy with init_module. A
      * module that needs no binding (or no driver fd) goes through plain
      * finit_module on the validated fd.
      */
-    drv = ksu_get_driver_fd();
+    drv = xfg_get_driver_fd();
     if (drv >= 0 && !fstat(fd, &st) && st.st_size > 0) {
         /* MAP_PRIVATE + PROT_WRITE: patches stay in our copy, never the file. */
         image = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
@@ -612,7 +612,7 @@ static void fwd_flush(struct line_fwd *f)
     if (!f->len)
         return;
     f->buf[f->len] = '\0';
-    n = snprintf(out, sizeof(out), "ksu_preinit[%s]: %s\n", f->id, f->buf);
+    n = snprintf(out, sizeof(out), "xfg_preinit[%s]: %s\n", f->id, f->buf);
     if (n >= (int)sizeof(out)) {
         n = sizeof(out) - 1;
         out[n - 1] = '\n';
@@ -690,7 +690,7 @@ static int do_exec(const struct module_ctx *m, int argc, char **argv)
 {
     char env_modid[MODID_MAX + 8], env_dir[PATH_LEN + 16];
     char *envp[] = {
-        "KSU=true", "KSU_PREINIT=1", env_modid, env_dir, "PATH=/system/bin:/vendor/bin", NULL,
+        "XFG=true", "XFG_PREINIT=1", env_modid, env_dir, "PATH=/system/bin:/vendor/bin", NULL,
     };
     long timeout = EXEC_TIMEOUT_MS;
     int idx = 1, pfd[2], status, fd;
@@ -891,7 +891,7 @@ static int collect_modules(const char *preinit_dir)
 static int worker_main(void)
 {
     char preinit_dir[PATH_LEN];
-    const char *ksu_dir;
+    const char *xfg_dir;
     struct stat st;
     int count, i;
 
@@ -900,15 +900,15 @@ static int worker_main(void)
         return 0;
     }
 
-    if (is_dir(KSU_DIR_VOLD "/" PREINIT_SUBDIR))
-        ksu_dir = KSU_DIR_VOLD;
-    else if (is_dir(KSU_DIR_WATCHDOG "/" PREINIT_SUBDIR))
-        ksu_dir = KSU_DIR_WATCHDOG;
-    else if (is_dir(KSU_DIR_DEFAULT "/" PREINIT_SUBDIR))
-        ksu_dir = KSU_DIR_DEFAULT;
+    if (is_dir(XFG_DIR_VOLD "/" PREINIT_SUBDIR))
+        xfg_dir = XFG_DIR_VOLD;
+    else if (is_dir(XFG_DIR_WATCHDOG "/" PREINIT_SUBDIR))
+        xfg_dir = XFG_DIR_WATCHDOG;
+    else if (is_dir(XFG_DIR_DEFAULT "/" PREINIT_SUBDIR))
+        xfg_dir = XFG_DIR_DEFAULT;
     else
         return 0;
-    snprintf(preinit_dir, sizeof(preinit_dir), "%s/%s", ksu_dir, PREINIT_SUBDIR);
+    snprintf(preinit_dir, sizeof(preinit_dir), "%s/%s", xfg_dir, PREINIT_SUBDIR);
 
     if (lstat(preinit_dir, &st) || !safe_owner(&st)) {
         klog("%s is not root owned or is group/other writable, skip", preinit_dir);
@@ -918,7 +918,7 @@ static int worker_main(void)
     count = collect_modules(preinit_dir);
     if (!count)
         return 0;
-    if (!bootcount_check_and_bump(ksu_dir))
+    if (!bootcount_check_and_bump(xfg_dir))
         return 0;
 
     for (i = 0; i < count; i++)

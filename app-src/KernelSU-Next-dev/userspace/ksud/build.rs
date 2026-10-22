@@ -40,7 +40,7 @@ fn configure_bindgen() {
     let mut builder = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("src/ksu_uapi.h")
+        .header("src/xfg_uapi.h")
         .clang_args(["-x", "c++", "-I../../"])
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
@@ -53,7 +53,7 @@ fn configure_bindgen() {
     if env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("riscv64") {
         // libc does not yet expose Android's RISC-V signal context. Generate
         // it from the target NDK rather than assuming another libc's layout.
-        builder = builder.header_contents("ksu_signal_context.h", "#include <sys/ucontext.h>");
+        builder = builder.header_contents("xfg_signal_context.h", "#include <sys/ucontext.h>");
     }
     let bindings = builder
         // Finish the builder and generate the bindings.
@@ -134,8 +134,8 @@ fn run_assembler(program: &Path, arguments: &[OsString]) -> Result<(), String> {
 
 fn assemble_bootstrap() {
     println!("cargo:rerun-if-changed={BOOTSTRAP_SOURCE}");
-    println!("cargo:rerun-if-env-changed=KSU_LKM_BOOTSTRAP_OBJECT");
-    println!("cargo:rerun-if-env-changed=KSU_LKM_BOOTSTRAP_CC");
+    println!("cargo:rerun-if-env-changed=XFG_LKM_BOOTSTRAP_OBJECT");
+    println!("cargo:rerun-if-env-changed=XFG_LKM_BOOTSTRAP_CC");
     println!("cargo:rerun-if-env-changed=ANDROID_NDK_HOME");
     println!("cargo:rerun-if-env-changed=ANDROID_NDK_ROOT");
 
@@ -143,11 +143,11 @@ fn assemble_bootstrap() {
     let source = manifest.join(BOOTSTRAP_SOURCE);
     let output = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join(BOOTSTRAP_OBJECT);
 
-    if let Some(prebuilt) = env::var_os("KSU_LKM_BOOTSTRAP_OBJECT") {
+    if let Some(prebuilt) = env::var_os("XFG_LKM_BOOTSTRAP_OBJECT") {
         let prebuilt = PathBuf::from(prebuilt);
         copy_bootstrap_object(&prebuilt, &output).unwrap_or_else(|error| {
             panic!(
-                "cannot use KSU_LKM_BOOTSTRAP_OBJECT {}: {error}",
+                "cannot use XFG_LKM_BOOTSTRAP_OBJECT {}: {error}",
                 prebuilt.display()
             )
         });
@@ -169,7 +169,7 @@ fn assemble_bootstrap() {
 
     let mut errors = Vec::new();
     let mut drivers = Vec::<PathBuf>::new();
-    if let Some(compiler) = env::var_os("KSU_LKM_BOOTSTRAP_CC") {
+    if let Some(compiler) = env::var_os("XFG_LKM_BOOTSTRAP_CC") {
         drivers.push(PathBuf::from(compiler));
     }
     drivers.push(PathBuf::from("aarch64-linux-gnu-gcc"));
@@ -220,7 +220,7 @@ fn assemble_bootstrap() {
         Err(error) => {
             errors.push(error);
             panic!(
-                "cannot assemble the AArch64 LKM bootstrap; install an AArch64 GNU compiler, clang, or llvm-mc, or set KSU_LKM_BOOTSTRAP_OBJECT:\n{}",
+                "cannot assemble the AArch64 LKM bootstrap; install an AArch64 GNU compiler, clang, or llvm-mc, or set XFG_LKM_BOOTSTRAP_OBJECT:\n{}",
                 errors.join("\n")
             );
         }

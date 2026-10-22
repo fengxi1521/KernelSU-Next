@@ -14,10 +14,10 @@
 #include "manager/throne_tracker.h"
 #include "hook/syscall_hook_manager.h"
 #include "hook/lsm_hook.h"
-#include "runtime/ksud.h"
-#include "runtime/ksud_boot.h"
+#include "runtime/xfgd.h"
+#include "runtime/xfgd_boot.h"
 #include "supercall/supercall.h"
-#include "ksu.h"
+#include "xfg.h"
 #include "infra/file_wrapper.h"
 #include "selinux/selinux.h"
 #include "hook/syscall_hook.h"
@@ -29,7 +29,7 @@
 #include "infra/symbol_resolver.h"
 #include "preinit/preinit.h"
 
-#if defined(__x86_64__) && !defined(CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER)
+#if defined(__x86_64__) && !defined(CONFIG_XFG_X86_PATCH_SYSCALL_DISPATCHER)
 #include <asm/cpufeature.h>
 #include <linux/version.h>
 #ifndef X86_FEATURE_INDIRECT_SAFE
@@ -40,7 +40,7 @@
 // workaround for A12-5.10 kernel
 // Some third-party kernel (e.g. linegaeOS) uses wrong toolchain, which supports
 // CC_HAVE_STACKPROTECTOR_SYSREG while gki's toolchain doesn't.
-// Therefore, ksu lkm, which uses gki toolchain, requires this __stack_chk_guard,
+// Therefore, xfg lkm, which uses gki toolchain, requires this __stack_chk_guard,
 // while those third-party kernel can't provide.
 // Thus, we manually provide it instead of using kernel's
 #if defined(CONFIG_STACKPROTECTOR) &&                                          \
@@ -51,7 +51,7 @@
 unsigned long __stack_chk_guard __ro_after_init
     __attribute__((visibility("hidden")));
 
-__attribute__((no_stack_protector)) void __init ksu_setup_stack_chk_guard()
+__attribute__((no_stack_protector)) void __init xfg_setup_stack_chk_guard()
 {
     unsigned long canary;
 
@@ -62,51 +62,51 @@ __attribute__((no_stack_protector)) void __init ksu_setup_stack_chk_guard()
     __stack_chk_guard = canary;
 }
 
-__attribute__((naked)) int __init kernelsu_init_early(void)
+__attribute__((naked)) int __init xiaofeng_init_early(void)
 {
     asm("mov x19, x30;\n"
-        "bl ksu_setup_stack_chk_guard;\n"
+        "bl xfg_setup_stack_chk_guard;\n"
         "mov x30, x19;\n"
-        "b kernelsu_init;\n");
+        "b xiaofeng_init;\n");
 }
 #define NEED_OWN_STACKPROTECTOR 1
 #else
 #define NEED_OWN_STACKPROTECTOR 0
 #endif
 
-struct cred *ksu_cred;
-bool ksu_late_loaded;
+struct cred *xfg_cred;
+bool xfg_late_loaded;
 
-#ifdef CONFIG_KSU_DEBUG
+#ifdef CONFIG_XFG_DEBUG
 bool allow_shell = true;
 #else
 bool allow_shell = false;
 #endif
 module_param(allow_shell, bool, 0);
 
-bool ksu_no_custom_rc = false;
-module_param_named(norc, ksu_no_custom_rc, bool, 0);
+bool xfg_no_custom_rc = false;
+module_param_named(norc, xfg_no_custom_rc, bool, 0);
 
 #ifdef MODULE
-bool ksu_bundled = false;
-module_param_named(bundled, ksu_bundled, bool, 0);
+bool xfg_bundled = false;
+module_param_named(bundled, xfg_bundled, bool, 0);
 #endif
 
-int __init kernelsu_init(void)
+int __init xiaofeng_init(void)
 {
-#ifdef KSU_MANAGER_PACKAGE
-	pr_info("welcome to KernelSU version " __stringify(KERNEL_SU_VERSION) ", package name " KSU_MANAGER_PACKAGE "\n");
+#ifdef XFG_MANAGER_PACKAGE
+	pr_info("welcome to XiaoFeng version " __stringify(KERNEL_SU_VERSION) ", package name " XFG_MANAGER_PACKAGE "\n");
 #else
-	pr_info("welcome to KernelSU version " __stringify(KERNEL_SU_VERSION) "\n");
+	pr_info("welcome to XiaoFeng version " __stringify(KERNEL_SU_VERSION) "\n");
 #endif
-#if defined(__x86_64__) && !defined(CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER)
+#if defined(__x86_64__) && !defined(CONFIG_XFG_X86_PATCH_SYSCALL_DISPATCHER)
     // If the kernel has the hardening patch, X86_FEATURE_INDIRECT_SAFE must be set
     if (!boot_cpu_has(X86_FEATURE_INDIRECT_SAFE)) {
         pr_alert("*************************************************************");
         pr_alert("**     NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE    **");
         pr_alert("**                                                         **");
         pr_alert("**        X86_FEATURE_INDIRECT_SAFE is not enabled!        **");
-        pr_alert("**      KernelSU will abort initialization to prevent      **");
+        pr_alert("**      XiaoFeng will abort initialization to prevent      **");
         pr_alert("**                     kernel panic.                       **");
         pr_alert("**                                                         **");
         pr_alert("**     NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE    **");
@@ -116,16 +116,16 @@ int __init kernelsu_init(void)
 #endif
 
 #ifdef MODULE
-	ksu_late_loaded = (current->pid != 1);
+	xfg_late_loaded = (current->pid != 1);
 #else
-	ksu_late_loaded = false;
+	xfg_late_loaded = false;
 #endif
 
-#ifdef CONFIG_KSU_DEBUG
+#ifdef CONFIG_XFG_DEBUG
 	pr_alert("*************************************************************");
 	pr_alert("**     NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE    **");
 	pr_alert("**                                                         **");
-	pr_alert("**         You are running KernelSU in DEBUG mode          **");
+	pr_alert("**         You are running XiaoFeng in DEBUG mode          **");
 	pr_alert("**                                                         **");
 	pr_alert("**     NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE    **");
 	pr_alert("*************************************************************");
@@ -134,53 +134,53 @@ int __init kernelsu_init(void)
 		pr_alert("shell is allowed at init!");
 	}
 
-	ksu_cred = prepare_creds();
-	if (!ksu_cred) {
+	xfg_cred = prepare_creds();
+	if (!xfg_cred) {
 		pr_err("prepare cred failed!\n");
 		return -ENOSYS;
 	}
 
-	ksu_init_symbol_resolver();
-	ksu_syscall_hook_init();
+	xfg_init_symbol_resolver();
+	xfg_syscall_hook_init();
 
 	// Block modules early, before vendor modules are loaded in second stage.
-	ksu_module_blacklist_init();
+	xfg_module_blacklist_init();
 
-	ksu_feature_init();
-	ksu_sulog_init();
-	ksu_adb_root_init();
-	ksu_lsm_hook_init();
-	ksu_selinux_hide_init();
-	ksu_shell_su_adb_only_init();
+	xfg_feature_init();
+	xfg_sulog_init();
+	xfg_adb_root_init();
+	xfg_lsm_hook_init();
+	xfg_selinux_hide_init();
+	xfg_shell_su_adb_only_init();
 
-	ksu_supercalls_init();
-	ksu_app_profile_init();
+	xfg_supercalls_init();
+	xfg_app_profile_init();
 
-	if (ksu_late_loaded) {
+	if (xfg_late_loaded) {
 		pr_info("late load mode, skipping kprobe hooks\n");
 
-		apply_kernelsu_rules();
+		apply_xiaofeng_rules();
 		cache_sid();
-		setup_ksu_cred();
+		setup_xfg_cred();
 
-		// Grant current process (ksud late-load) root
-		// with KSU SELinux domain before enforcing SELinux, so it
+		// Grant current process (xfgd late-load) root
+		// with XFG SELinux domain before enforcing SELinux, so it
 		// can continue to access /data/app etc. after enforcement.
 		escape_to_root_for_init();
 
-		ksu_allowlist_init();
-		ksu_load_allow_list();
+		xfg_allowlist_init();
+		xfg_load_allow_list();
 
-		ksu_syscall_hook_manager_init();
+		xfg_syscall_hook_manager_init();
 
-		ksu_throne_tracker_init();
-		ksu_observer_init();
-		ksu_file_wrapper_init();
+		xfg_throne_tracker_init();
+		xfg_observer_init();
+		xfg_file_wrapper_init();
 
-		ksu_boot_completed = true;
+		xfg_boot_completed = true;
 		track_throne(false);
 
-		ksu_feature_apply_forced();
+		xfg_feature_apply_forced();
 
 		if (!getenforce()) {
 			pr_info("Permissive SELinux, enforcing\n");
@@ -188,70 +188,70 @@ int __init kernelsu_init(void)
 		}
 
 	} else {
-		ksu_syscall_hook_manager_init();
+		xfg_syscall_hook_manager_init();
 
-		ksu_allowlist_init();
+		xfg_allowlist_init();
 
-		ksu_throne_tracker_init();
+		xfg_throne_tracker_init();
 
-		ksu_ksud_init();
+		xfg_xfgd_init();
 
-		ksu_preinit_init();
+		xfg_preinit_init();
 
-		ksu_file_wrapper_init();
+		xfg_file_wrapper_init();
 	}
 
 #ifdef MODULE
-#ifndef CONFIG_KSU_DEBUG
+#ifndef CONFIG_XFG_DEBUG
 	kobject_del(&THIS_MODULE->mkobj.kobj);
 #endif
 #endif
 	return 0;
 }
 
-void __exit kernelsu_exit(void)
+void __exit xiaofeng_exit(void)
 {
 	// Phase 1: Stop all hooks first to prevent new callbacks
-	ksu_syscall_hook_manager_exit();
+	xfg_syscall_hook_manager_exit();
 
-	ksu_supercalls_exit();
+	xfg_supercalls_exit();
 
-	if (!ksu_late_loaded) {
-		ksu_ksud_exit();
-		ksu_preinit_exit();
+	if (!xfg_late_loaded) {
+		xfg_xfgd_exit();
+		xfg_preinit_exit();
 	}
 
 	// Wait for any in-flight RCU readers (e.g. handler traversing allow_list)
 	synchronize_rcu();
 
 	// Phase 2: Now safe to release data structures
-	ksu_observer_exit();
+	xfg_observer_exit();
 
-	ksu_throne_tracker_exit();
+	xfg_throne_tracker_exit();
 
-	ksu_allowlist_exit();
+	xfg_allowlist_exit();
 
-	ksu_shell_su_adb_only_exit();
-	ksu_selinux_hide_exit();
-	ksu_lsm_hook_exit();
-	ksu_adb_root_exit();
-	ksu_sulog_exit();
-	ksu_feature_exit();
-	ksu_module_blacklist_exit();
+	xfg_shell_su_adb_only_exit();
+	xfg_selinux_hide_exit();
+	xfg_lsm_hook_exit();
+	xfg_adb_root_exit();
+	xfg_sulog_exit();
+	xfg_feature_exit();
+	xfg_module_blacklist_exit();
 
-	put_cred(ksu_cred);
+	put_cred(xfg_cred);
 }
 
 #if NEED_OWN_STACKPROTECTOR
-module_init(kernelsu_init_early);
+module_init(xiaofeng_init_early);
 #else
-module_init(kernelsu_init);
+module_init(xiaofeng_init);
 #endif
-module_exit(kernelsu_exit);
+module_exit(xiaofeng_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("weishu");
-MODULE_DESCRIPTION("Android KernelSU");
+MODULE_AUTHOR("XiaoFeng");
+MODULE_DESCRIPTION("Android XiaoFeng");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)
 MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)

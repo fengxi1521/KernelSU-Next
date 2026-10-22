@@ -1,5 +1,5 @@
-#ifndef __KSU_H_UTIL
-#define __KSU_H_UTIL
+#ifndef __XFG_H_UTIL
+#define __XFG_H_UTIL
 
 #include "linux/fdtable.h" // IWYU pragma: keep
 #include <linux/version.h>
@@ -14,14 +14,14 @@
 #include "arch.h"
 
 #if defined(__aarch64__)
-#define KSU_SYS_PREFIX(name) __arm64_sys_##name
+#define XFG_SYS_PREFIX(name) __arm64_sys_##name
 #elif defined(__x86_64__)
-#define KSU_SYS_PREFIX(name) __x64_sys_##name
+#define XFG_SYS_PREFIX(name) __x64_sys_##name
 #elif defined(__riscv)
-#define KSU_SYS_PREFIX(name) __riscv_sys_##name
+#define XFG_SYS_PREFIX(name) __riscv_sys_##name
 #else // wire up your arch here.
 static_assert(1 == 0, "Unsupported architecture!");
-#define KSU_SYS_PREFIX(name) sys_##name
+#define XFG_SYS_PREFIX(name) sys_##name
 #endif
 
 /**
@@ -32,15 +32,15 @@ static_assert(1 == 0, "Unsupported architecture!");
  */
 #define __ksyscall(name, a, b, c, d, e, f)                                                                             \
     ({                                                                                                                 \
-        extern long KSU_SYS_PREFIX(name)(const struct pt_regs *);                                                      \
-        struct pt_regs __ksu_regs = { 0 };                                                                             \
-        PT_REGS_SYSCALL_PARM1(&__ksu_regs) = (unsigned long)(a);                                                       \
-        PT_REGS_PARM2(&__ksu_regs) = (unsigned long)(b);                                                               \
-        PT_REGS_PARM3(&__ksu_regs) = (unsigned long)(c);                                                               \
-        PT_REGS_SYSCALL_PARM4(&__ksu_regs) = (unsigned long)(d);                                                       \
-        PT_REGS_PARM5(&__ksu_regs) = (unsigned long)(e);                                                               \
-        PT_REGS_PARM6(&__ksu_regs) = (unsigned long)(f);                                                               \
-        (long)KSU_SYS_PREFIX(name)(&__ksu_regs);                                                                       \
+        extern long XFG_SYS_PREFIX(name)(const struct pt_regs *);                                                      \
+        struct pt_regs __xfg_regs = { 0 };                                                                             \
+        PT_REGS_SYSCALL_PARM1(&__xfg_regs) = (unsigned long)(a);                                                       \
+        PT_REGS_PARM2(&__xfg_regs) = (unsigned long)(b);                                                               \
+        PT_REGS_PARM3(&__xfg_regs) = (unsigned long)(c);                                                               \
+        PT_REGS_SYSCALL_PARM4(&__xfg_regs) = (unsigned long)(d);                                                       \
+        PT_REGS_PARM5(&__xfg_regs) = (unsigned long)(e);                                                               \
+        PT_REGS_PARM6(&__xfg_regs) = (unsigned long)(f);                                                               \
+        (long)XFG_SYS_PREFIX(name)(&__xfg_regs);                                                                       \
     })
 
 // https://elixir.bootlin.com/musl/v1.2.6/source/src/internal/syscall.h#L45
@@ -67,9 +67,9 @@ static inline void __user *userspace_stack_buffer(const void *d, size_t len)
     return copy_to_user(p, d, len) ? NULL : p;
 }
 
-#define ksu_close_fd(fd) ({ ksyscall(close, fd); })
+#define xfg_close_fd(fd) ({ ksyscall(close, fd); })
 
-static inline struct file *ksu_filp_open_nonotify(const char *path, int flags)
+static inline struct file *xfg_filp_open_nonotify(const char *path, int flags)
 {
     struct path p;
     struct file *f;

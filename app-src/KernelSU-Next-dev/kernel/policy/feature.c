@@ -7,36 +7,36 @@
 #include <linux/mutex.h>
 #include <linux/string.h>
 
-static const struct ksu_feature_handler *feature_handlers[KSU_FEATURE_MAX];
+static const struct xfg_feature_handler *feature_handlers[XFG_FEATURE_MAX];
 
 static DEFINE_MUTEX(feature_mutex);
 
-static const char *const feature_names[KSU_FEATURE_MAX] = {
-    [KSU_FEATURE_SU_COMPAT] = "su_compat",
-    [KSU_FEATURE_KERNEL_UMOUNT] = "kernel_umount",
-    [KSU_FEATURE_SULOG] = "sulog",
-    [KSU_FEATURE_ADB_ROOT] = "adb_root",
-    [KSU_FEATURE_SELINUX_HIDE] = "selinux_hide",
-    [KSU_FEATURE_SHELL_SU_ADB_ONLY] = "shell_su_adb_only",
-    [KSU_FEATURE_AVC_SPOOF] = "avc_spoof",
+static const char *const feature_names[XFG_FEATURE_MAX] = {
+    [XFG_FEATURE_SU_COMPAT] = "su_compat",
+    [XFG_FEATURE_KERNEL_UMOUNT] = "kernel_umount",
+    [XFG_FEATURE_SULOG] = "sulog",
+    [XFG_FEATURE_ADB_ROOT] = "adb_root",
+    [XFG_FEATURE_SELINUX_HIDE] = "selinux_hide",
+    [XFG_FEATURE_SHELL_SU_ADB_ONLY] = "shell_su_adb_only",
+    [XFG_FEATURE_AVC_SPOOF] = "avc_spoof",
 };
 
 // Features forced by boot config. Written only while parsing module params
-// (before kernelsu_init), read-only afterwards.
-static u64 forced_values[KSU_FEATURE_MAX];
-static DECLARE_BITMAP(forced_mask, KSU_FEATURE_MAX);
+// (before xiaofeng_init), read-only afterwards.
+static u64 forced_values[XFG_FEATURE_MAX];
+static DECLARE_BITMAP(forced_mask, XFG_FEATURE_MAX);
 // Forced features whose value has not been applied successfully yet
-static DECLARE_BITMAP(forced_pending, KSU_FEATURE_MAX);
+static DECLARE_BITMAP(forced_pending, XFG_FEATURE_MAX);
 
 static int parse_feature_id(const char *name, u32 *id)
 {
     u32 i;
 
     if (!kstrtou32(name, 10, id)) {
-        return *id < KSU_FEATURE_MAX ? 0 : -EINVAL;
+        return *id < XFG_FEATURE_MAX ? 0 : -EINVAL;
     }
 
-    for (i = 0; i < KSU_FEATURE_MAX; i++) {
+    for (i = 0; i < XFG_FEATURE_MAX; i++) {
         if (feature_names[i] && !strcmp(name, feature_names[i])) {
             *id = i;
             return 0;
@@ -48,7 +48,7 @@ static int parse_feature_id(const char *name, u32 *id)
 
 // force_feature=<name|id>:<value>[,<name|id>:<value>...]
 // May be specified multiple times. Invalid entries are skipped instead of
-// failing, as a param error would prevent KernelSU from loading at all.
+// failing, as a param error would prevent XiaoFeng from loading at all.
 // This may run before the slab allocator is up (built-in), so don't allocate.
 static int force_feature_param_set(const char *val, const struct kernel_param *kp)
 {
@@ -102,14 +102,14 @@ static const struct kernel_param_ops force_feature_param_ops = {
 };
 module_param_cb(force_feature, &force_feature_param_ops, NULL, 0);
 
-int __init ksu_register_feature_handler(const struct ksu_feature_handler *handler)
+int __init xfg_register_feature_handler(const struct xfg_feature_handler *handler)
 {
 	if (!handler) {
 		pr_err("feature: register handler is NULL\n");
 		return -EINVAL;
 	}
 
-	if (handler->feature_id >= KSU_FEATURE_MAX) {
+	if (handler->feature_id >= XFG_FEATURE_MAX) {
 		pr_err("feature: invalid feature_id %u\n", handler->feature_id);
 		return -EINVAL;
 	}
@@ -136,11 +136,11 @@ int __init ksu_register_feature_handler(const struct ksu_feature_handler *handle
 	return 0;
 }
 
-int ksu_unregister_feature_handler(u32 feature_id)
+int xfg_unregister_feature_handler(u32 feature_id)
 {
 	int ret = 0;
 
-	if (feature_id >= KSU_FEATURE_MAX) {
+	if (feature_id >= XFG_FEATURE_MAX) {
 		pr_err("feature: invalid feature_id %u\n", feature_id);
 		return -EINVAL;
 	}
@@ -162,12 +162,12 @@ out:
 	return ret;
 }
 
-int ksu_get_feature(u32 feature_id, u64 *value, bool *supported)
+int xfg_get_feature(u32 feature_id, u64 *value, bool *supported)
 {
 	int ret = 0;
-	const struct ksu_feature_handler *handler;
+	const struct xfg_feature_handler *handler;
 
-	if (feature_id >= KSU_FEATURE_MAX) {
+	if (feature_id >= XFG_FEATURE_MAX) {
 		pr_err("feature: invalid feature_id %u\n", feature_id);
 		return -EINVAL;
 	}
@@ -206,12 +206,12 @@ out:
 	return ret;
 }
 
-int ksu_set_feature(u32 feature_id, u64 value)
+int xfg_set_feature(u32 feature_id, u64 value)
 {
 	int ret = 0;
-	const struct ksu_feature_handler *handler;
+	const struct xfg_feature_handler *handler;
 
-	if (feature_id >= KSU_FEATURE_MAX) {
+	if (feature_id >= XFG_FEATURE_MAX) {
 		pr_err("feature: invalid feature_id %u\n", feature_id);
 		return -EINVAL;
 	}
@@ -247,20 +247,20 @@ out:
 	return ret;
 }
 
-bool ksu_feature_is_forced(u32 feature_id)
+bool xfg_feature_is_forced(u32 feature_id)
 {
-    return feature_id < KSU_FEATURE_MAX && test_bit(feature_id, forced_mask);
+    return feature_id < XFG_FEATURE_MAX && test_bit(feature_id, forced_mask);
 }
 
-void ksu_feature_apply_forced(void)
+void xfg_feature_apply_forced(void)
 {
-    const struct ksu_feature_handler *handler;
+    const struct xfg_feature_handler *handler;
     unsigned int id;
     int ret;
 
     mutex_lock(&feature_mutex);
 
-    for_each_set_bit (id, forced_pending, KSU_FEATURE_MAX) {
+    for_each_set_bit (id, forced_pending, XFG_FEATURE_MAX) {
         handler = feature_handlers[id];
         if (!handler || !handler->set_handler) {
             continue;
@@ -279,24 +279,24 @@ void ksu_feature_apply_forced(void)
     mutex_unlock(&feature_mutex);
 }
 
-void __init ksu_feature_init(void)
+void __init xfg_feature_init(void)
 {
 	int i;
 
-	for (i = 0; i < KSU_FEATURE_MAX; i++) {
+	for (i = 0; i < XFG_FEATURE_MAX; i++) {
 		feature_handlers[i] = NULL;
 	}
 
 	pr_info("feature: feature management initialized\n");
 }
 
-void __exit ksu_feature_exit(void)
+void __exit xfg_feature_exit(void)
 {
 	int i;
 
 	mutex_lock(&feature_mutex);
 
-	for (i = 0; i < KSU_FEATURE_MAX; i++) {
+	for (i = 0; i < XFG_FEATURE_MAX; i++) {
 		feature_handlers[i] = NULL;
 	}
 

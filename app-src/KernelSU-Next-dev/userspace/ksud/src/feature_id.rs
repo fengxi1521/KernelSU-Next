@@ -71,7 +71,7 @@ impl FeatureId {
                 "SELinux Hide - sanitize /sys/fs/selinux access results for app UIDs"
             }
             Self::ShellSuAdbOnly => {
-                "Shell SU ADB Only - when shell is granted root, additionally require the process to be spawned by adbd or a KernelSU root process (ksu domain)"
+                "Shell SU ADB Only - when shell is granted root, additionally require the process to be spawned by adbd or a XiaoFeng root process (xfg domain)"
             }
             Self::AvcSpoof => {
                 "AVC Spoof - fix selinux context leak due to avc denial"

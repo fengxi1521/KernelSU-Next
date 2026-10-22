@@ -24,7 +24,7 @@ fn on_feature_applied(feature_id: FeatureId, value: u64) {
 }
 
 fn set_kernel_feature(feature_id: FeatureId, value: u64) -> Result<()> {
-    crate::ksucalls::set_feature(feature_id as u32, value)
+    crate::xfgcalls::set_feature(feature_id as u32, value)
         .with_context(|| format!("Failed to set feature {} to {value}", feature_id.name()))?;
 
     on_feature_applied(feature_id, value);
@@ -33,7 +33,7 @@ fn set_kernel_feature(feature_id: FeatureId, value: u64) -> Result<()> {
 }
 
 fn is_forced(id: u32) -> bool {
-    crate::ksucalls::get_feature(id).is_ok_and(|state| state.forced)
+    crate::xfgcalls::get_feature(id).is_ok_and(|state| state.forced)
 }
 
 pub fn load_binary_config() -> Result<HashMap<u32, u64>> {
@@ -140,7 +140,7 @@ pub fn apply_config(features: &HashMap<u32, u64>) {
                     log::warn!("Failed to set feature {}: {e}", feature_id.name());
                 }
             },
-            None => match crate::ksucalls::set_feature(id, value) {
+            None => match crate::xfgcalls::set_feature(id, value) {
                 Ok(()) => {
                     log::info!("Set feature {id} to {value}");
                     applied += 1;
@@ -157,7 +157,7 @@ pub fn apply_config(features: &HashMap<u32, u64>) {
 
 pub fn get_feature(id: &str) -> Result<()> {
     let feature_id = parse_feature_id(id)?;
-    let state = crate::ksucalls::get_feature(feature_id as u32)
+    let state = crate::xfgcalls::get_feature(feature_id as u32)
         .with_context(|| format!("Failed to get feature {id}"))?;
 
     if !state.supported {
@@ -186,7 +186,7 @@ pub fn get_feature(id: &str) -> Result<()> {
 pub fn get_feature_config(id: &str) -> Result<()> {
     let feature_id = parse_feature_id(id)?;
 
-    if let Ok(state) = crate::ksucalls::get_feature(feature_id as u32)
+    if let Ok(state) = crate::xfgcalls::get_feature(feature_id as u32)
         && state.forced
     {
         bail!(
@@ -229,7 +229,7 @@ pub fn set_feature(id: &str, value: u64) -> Result<()> {
 
         if !managing_modules.is_empty() {
             // Feature is managed, check if caller is an authorized module
-            let caller_module = std::env::var("KSU_MODULE").unwrap_or_default();
+            let caller_module = std::env::var("XFG_MODULE").unwrap_or_default();
 
             if caller_module.is_empty() || !managing_modules.contains(&&caller_module) {
                 bail!(
@@ -281,7 +281,7 @@ pub fn list_features() {
 
     for feature_id in &FeatureId::ALL {
         let id = *feature_id as u32;
-        let state = crate::ksucalls::get_feature(id).unwrap_or_default();
+        let state = crate::xfgcalls::get_feature(id).unwrap_or_default();
 
         let status = if !state.supported {
             "NOT_SUPPORTED".to_string()
@@ -340,7 +340,7 @@ pub fn save_config() -> Result<()> {
 
     for feature_id in &FeatureId::ALL {
         let id = *feature_id as u32;
-        if let Ok(state) = crate::ksucalls::get_feature(id)
+        if let Ok(state) = crate::xfgcalls::get_feature(id)
             && state.supported
             && !state.forced
         {
@@ -361,7 +361,7 @@ pub fn check_feature(id: &str) -> Result<()> {
     let feature_id = parse_feature_id(id)?;
 
     // Forced by boot config takes precedence over module management
-    if crate::ksucalls::get_feature(feature_id as u32).is_ok_and(|state| state.forced) {
+    if crate::xfgcalls::get_feature(feature_id as u32).is_ok_and(|state| state.forced) {
         println!("forced");
         return Ok(());
     }
@@ -378,7 +378,7 @@ pub fn check_feature(id: &str) -> Result<()> {
     }
 
     // Check if the feature is supported by kernel
-    let state = crate::ksucalls::get_feature(feature_id as u32)
+    let state = crate::xfgcalls::get_feature(feature_id as u32)
         .with_context(|| format!("Failed to get feature {id}"))?;
 
    if state.supported {
@@ -395,7 +395,7 @@ pub fn check_feature(id: &str) -> Result<()> {
 /// them in both cases.
 pub fn init_forced_features() {
     for feature_id in FeatureId::ALL {
-        if let Ok(state) = crate::ksucalls::get_feature(feature_id as u32)
+        if let Ok(state) = crate::xfgcalls::get_feature(feature_id as u32)
             && state.forced
         {
             log::info!(

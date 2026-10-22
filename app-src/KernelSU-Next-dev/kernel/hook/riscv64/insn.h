@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-#ifndef __KSU_RISCV64_INSN_H
-#define __KSU_RISCV64_INSN_H
+#ifndef __XFG_RISCV64_INSN_H
+#define __XFG_RISCV64_INSN_H
 
 #include <linux/types.h>
 
-static inline unsigned int ksu_riscv_insn_length(u16 insn)
+static inline unsigned int xfg_riscv_insn_length(u16 insn)
 {
     if ((insn & 3) != 3)
         return 2;
@@ -14,7 +14,7 @@ static inline unsigned int ksu_riscv_insn_length(u16 insn)
     return 0;
 }
 
-static inline bool ksu_riscv_jal_target(u32 insn, unsigned long pc, unsigned long *target)
+static inline bool xfg_riscv_jal_target(u32 insn, unsigned long pc, unsigned long *target)
 {
     u32 imm;
     s32 offset;
@@ -29,7 +29,7 @@ static inline bool ksu_riscv_jal_target(u32 insn, unsigned long pc, unsigned lon
     return true;
 }
 
-static inline bool ksu_riscv_auipc_call_target(u32 upper, u32 next, unsigned int next_len, unsigned long pc,
+static inline bool xfg_riscv_auipc_call_target(u32 upper, u32 next, unsigned int next_len, unsigned long pc,
                                                unsigned long *target)
 {
     unsigned int reg = (upper >> 7) & 0x1f;

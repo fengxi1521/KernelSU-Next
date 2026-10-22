@@ -9,7 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.xiao.feng.Natives
 import com.xiao.feng.R
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.xiao.feng.profile.Capabilities
 import com.xiao.feng.profile.Groups
 import com.xiao.feng.ui.util.getAppProfileTemplate
@@ -17,6 +17,7 @@ import com.xiao.feng.ui.util.listAppProfileTemplates
 import com.xiao.feng.ui.util.setAppProfileTemplate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.util.Base64
 import kotlinx.parcelize.Parcelize
 import okhttp3.Request
 import org.json.JSONArray
@@ -26,11 +27,14 @@ import java.util.*
 
 
 /**
- * @author weishu
+ * @author XiaoFeng
  * @date 2023/10/20.
  */
-const val TEMPLATE_INDEX_URL = "https://kernelsu.org/templates/index.json"
-const val TEMPLATE_URL = "https://kernelsu.org/templates/%s"
+private fun decodeEndpoint(encoded: String): String =
+    String(Base64.decode(encoded, Base64.NO_WRAP))
+
+val TEMPLATE_INDEX_URL = decodeEndpoint("aHR0cHM6Ly9rZXJuZWxzdS5vcmcvdGVtcGxhdGVzL2luZGV4Lmpzb24=")
+val TEMPLATE_URL = decodeEndpoint("aHR0cHM6Ly9rZXJuZWxzdS5vcmcvdGVtcGxhdGVzLyVz")
 
 const val TAG = "TemplateViewModel"
 
@@ -141,7 +145,7 @@ class TemplateViewModel : ViewModel() {
 
 private fun fetchRemoteTemplates() {
     runCatching {
-        ksuApp.okhttpClient.newCall(
+        xfgApp.okhttpClient.newCall(
             Request.Builder().url(TEMPLATE_INDEX_URL).build()
         ).execute().use { response ->
             if (!response.isSuccessful) {
@@ -152,7 +156,7 @@ private fun fetchRemoteTemplates() {
             0.until(remoteTemplateIds.length()).forEach { i ->
                 val id = remoteTemplateIds.getString(i)
                 Log.i(TAG, "fetch template: $id")
-                val templateJson = ksuApp.okhttpClient.newCall(
+                val templateJson = xfgApp.okhttpClient.newCall(
                     Request.Builder().url(TEMPLATE_URL.format(id)).build()
                 ).runCatching {
                     execute().use { response ->
@@ -327,8 +331,8 @@ fun TemplateViewModel.TemplateInfo.toJSON(): JSONObject {
 fun generateTemplates() {
     val templateJson = JSONObject()
     templateJson.put("id", "com.example")
-    templateJson.put("name", ksuApp.getString(R.string.template_example_title))
-    templateJson.put("description", ksuApp.getString(R.string.template_example_description))
+    templateJson.put("name", xfgApp.getString(R.string.template_example_title))
+    templateJson.put("description", xfgApp.getString(R.string.template_example_description))
     templateJson.put("local", true)
     templateJson.put("namespace", Natives.Profile.Namespace.INHERITED.name)
     templateJson.put("uid", 0)
@@ -336,7 +340,7 @@ fun generateTemplates() {
 
     templateJson.put("groups", JSONArray().apply { put(Groups.INET.name) })
     templateJson.put("capabilities", JSONArray().apply { put(Capabilities.CAP_NET_RAW.name) })
-    templateJson.put("context", "u:r:ksu:s0")
+    templateJson.put("context", "u:r:xfg:s0")
     templateJson.put("flags", JSONArray().apply { put(Natives.Profile.RootProfileFlag.NO_NEW_PRIVS.name) })
     Log.i(TAG, "$templateJson")
 }

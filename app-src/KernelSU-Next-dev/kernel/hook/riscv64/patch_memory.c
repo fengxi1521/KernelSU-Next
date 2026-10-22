@@ -127,12 +127,12 @@ static int patch_cpu(void *data)
     /* CPU data writes are coherent. Do not invoke remote fence IPIs while
      * stop_machine holds the other CPUs: each CPU performs its own fence.i.
      */
-    if (info->flags & KSU_PATCH_TEXT_FLUSH_ICACHE)
+    if (info->flags & XFG_PATCH_TEXT_FLUSH_ICACHE)
         local_flush_icache_all();
     return 0;
 }
 
-int ksu_patch_text(void *dst, void *src, size_t len, int flags)
+int xfg_patch_text(void *dst, void *src, size_t len, int flags)
 {
     struct mutex *text_lock = (struct mutex *)find_kernel_symbol_exact("text_mutex");
     unsigned long end;
@@ -167,7 +167,7 @@ void *scan_call_to(void *start, size_t size, void *target)
     if (!start || !target)
         return NULL;
     while (size - offset >= 2) {
-        unsigned int len = ksu_riscv_insn_length(get_unaligned_le16(code + offset));
+        unsigned int len = xfg_riscv_insn_length(get_unaligned_le16(code + offset));
         unsigned long dest, pc = (unsigned long)(code + offset);
         u32 insn;
 
@@ -175,16 +175,16 @@ void *scan_call_to(void *start, size_t size, void *target)
             break;
         if (len == 4) {
             insn = get_unaligned_le32(code + offset);
-            if (ksu_riscv_jal_target(insn, pc, &dest) && dest == (unsigned long)target)
+            if (xfg_riscv_jal_target(insn, pc, &dest) && dest == (unsigned long)target)
                 return (void *)(code + offset);
             if (size - offset >= 6) {
                 u32 next = get_unaligned_le16(code + offset + 4);
-                unsigned int next_len = ksu_riscv_insn_length(next);
+                unsigned int next_len = xfg_riscv_insn_length(next);
                 if (next_len == 4 && size - offset >= 8)
                     next = get_unaligned_le32(code + offset + 4);
                 else if (next_len != 2)
                     next_len = 0;
-                if (ksu_riscv_auipc_call_target(insn, next, next_len, pc, &dest) && dest == (unsigned long)target)
+                if (xfg_riscv_auipc_call_target(insn, next, next_len, pc, &dest) && dest == (unsigned long)target)
                     return (void *)(code + offset);
             }
         }

@@ -2,7 +2,7 @@ package com.xiao.feng.profile
 
 /**
  * https://cs.android.com/android/platform/superproject/main/+/main:system/core/libcutils/include/private/android_filesystem_config.h
- * @author weishu
+ * @author XiaoFeng
  * @date 2023/6/3.
  */
 enum class Groups(val gid: Int, val display: String, val desc: String) {

@@ -13,7 +13,7 @@ use std::{
     process::Command,
 };
 
-use crate::{assets, boot_patch, defs, ksucalls, module, restorecon};
+use crate::{assets, boot_patch, defs, xfgcalls, module, restorecon};
 #[allow(unused_imports)]
 use std::fs::{Permissions, set_permissions};
 use std::os::unix::prelude::PermissionsExt;
@@ -157,7 +157,7 @@ pub fn is_safe_mode() -> bool {
     if safemode {
         return true;
     }
-    let safemode = ksucalls::check_kernel_safemode();
+    let safemode = xfgcalls::check_kernel_safemode();
     log::info!("kernel_safemode: {safemode}");
     safemode
 }
@@ -220,11 +220,11 @@ pub fn has_magisk() -> bool {
     which::which("magisk").is_ok()
 }
 
-fn link_ksud_to_bin() -> Result<()> {
-    let ksu_bin = PathBuf::from(defs::DAEMON_PATH);
-    let ksu_bin_link = PathBuf::from(defs::DAEMON_LINK_PATH);
-    if ksu_bin.exists() && !ksu_bin_link.exists() {
-        std::os::unix::fs::symlink(&ksu_bin, &ksu_bin_link)?;
+fn link_xfgd_to_bin() -> Result<()> {
+    let xfg_bin = PathBuf::from(defs::DAEMON_PATH);
+    let xfg_bin_link = PathBuf::from(defs::DAEMON_LINK_PATH);
+    if xfg_bin.exists() && !xfg_bin_link.exists() {
+        std::os::unix::fs::symlink(&xfg_bin, &xfg_bin_link)?;
     }
     Ok(())
 }
@@ -236,11 +236,11 @@ pub fn install(libadbroot: Option<PathBuf>) -> Result<()> {
         std::env::current_exe().with_context(|| "Failed to get self exe path")?,
         defs::DAEMON_PATH,
     )?;
-    restorecon::lsetfilecon(defs::DAEMON_PATH, restorecon::KSU_CON)?;
+    restorecon::lsetfilecon(defs::DAEMON_PATH, restorecon::XFG_CON)?;
     // install binary assets
     assets::ensure_binaries(false).with_context(|| "Failed to extract assets")?;
 
-    link_ksud_to_bin()?;
+    link_xfgd_to_bin()?;
 
     if let Some(libadbroot) = libadbroot {
         ensure_dir_exists(defs::LIBRARY_DIR)?;
@@ -271,7 +271,7 @@ pub fn uninstall(package_name: &str) -> Result<()> {
         out: None,
         out_name: None,
     })?;
-    println!("- Uninstall KernelSU-Next manager..");
+    println!("- Uninstall XiaoFeng manager..");
     Command::new("pm")
         .args(["uninstall", package_name])
         .spawn()?;
@@ -366,7 +366,7 @@ fn create_daemon_impl<F: FnOnce() -> Result<()>>(
 
 pub fn detach_process_group(use_init_pgrp: bool) {
     if use_init_pgrp {
-        if let Err(e) = ksucalls::set_init_pgrp() {
+        if let Err(e) = xfgcalls::set_init_pgrp() {
             log::error!("failed to switch to init group: {e:?}");
         } else {
             return;

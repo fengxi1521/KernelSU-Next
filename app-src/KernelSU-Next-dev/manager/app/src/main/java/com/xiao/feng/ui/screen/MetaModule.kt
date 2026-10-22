@@ -83,7 +83,7 @@ sealed class MetaModuleState {
 }
 
 /**
- * @author rifsxd
+ * @author XiaoFeng
  * @date 2026/1/29.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -107,7 +107,7 @@ fun MetaModuleScreen(navigator: DestinationsNavigator) {
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     val isManager = Natives.isManager
-    val ksuVersion = if (isManager) Natives.version else null
+    val xfgVersion = if (isManager) Natives.version else null
     val scrollState = LocalScrollState.current
     val navBarEnabled = LocalNavBarEnabled.current
     val isNavBarHidden = (scrollState?.isScrollingDown?.value ?: false) || (navBarEnabled?.value == false)

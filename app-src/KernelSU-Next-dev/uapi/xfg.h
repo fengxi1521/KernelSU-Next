@@ -1,5 +1,5 @@
-#ifndef __KSU_UAPI_KSU_H
-#define __KSU_UAPI_KSU_H
+#ifndef __XFG_UAPI_XFG_H
+#define __XFG_UAPI_XFG_H
 
 #include "uapi/supercall.h"
 #include "uapi/app_profile.h"
@@ -7,4 +7,4 @@
 #include "uapi/selinux.h"
 #include "uapi/sulog.h"
 
-#endif // __KSU_UAPI_KSU_H
+#endif // __XFG_UAPI_XFG_H

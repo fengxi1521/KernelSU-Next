@@ -13,12 +13,12 @@
 #include "susfs_abi.h"
 #include "susfs_log.h"
 #include "susfs.h"	/* susfs_expose_proc */
-#include "ksu_allow_gate.h"	/* the control-node gate is su's own */
+#include "xfg_allow_gate.h"	/* the control-node gate is su's own */
 
 static bool log_enabled = true;
 
 /* Load-time switch, read-only in sysfs; the runtime switch is the /proc node and the supercall, the interfaces
- * upstream's userspace drives (ksud insmod ... enable_log=0).  A load that starts silent is the only state in
+ * upstream's userspace drives (xfgd insmod ... enable_log=0).  A load that starts silent is the only state in
  * which the unconditional "loaded." line of susfs_main.c matters: without it, silent-but-loaded looks unloaded. */
 module_param_named(enable_log, log_enabled, bool, 0444);
 

@@ -92,17 +92,17 @@ fail:
 // However, it's backport to android13-5.10 but not to android12-5.10.
 // https://cs.android.com/android/_/android/kernel/common/+/6d9f07d8f1ffc310a6877153fe882f35ae380799
 // So we need to grep kernel source code to detect which one to use.
-#if KSU_NEW_DCACHE_FLUSH
-#define ksu_flush_dcache(start, sz)                                            \
+#if XFG_NEW_DCACHE_FLUSH
+#define xfg_flush_dcache(start, sz)                                            \
     ({                                                                         \
         unsigned long __start = (start);                                       \
         unsigned long __end = __start + (sz);                                  \
         dcache_clean_inval_poc(__start, __end);                                \
     })
-#define ksu_flush_icache(start, end) caches_clean_inval_pou(start, end)
+#define xfg_flush_icache(start, end) caches_clean_inval_pou(start, end)
 #else
-#define ksu_flush_dcache(start, sz) __flush_dcache_area((void *)start, sz)
-#define ksu_flush_icache(start, end) __flush_icache_range(start, end)
+#define xfg_flush_dcache(start, sz) __flush_dcache_area((void *)start, sz)
+#define xfg_flush_icache(start, end) __flush_icache_range(start, end)
 #endif
 
 struct patch_text_info {
@@ -131,7 +131,7 @@ struct patch_text_info {
 // not a big problem because we are in stop_machine.
 // ^1: https://github.com/NothingOSS/android_kernel_device_modules_6.1_nothing_mt6878/blob/957dac185efe46cbf6336b0fff9516d84c8cd78f/drivers/misc/mediatek/mkp/mkp_main.c#L29
 // ^2: https://github.com/torvalds/linux/commit/c0eb315ad9719e41ce44708455cc69df7ac9f3f8
-static int ksu_patch_text_nosync(void *dst, void *src, size_t len, int flags)
+static int xfg_patch_text_nosync(void *dst, void *src, size_t len, int flags)
 {
     pr_debug("patch dst=0x%lx src=0x%lx len=%ld\n", (unsigned long)dst,
              (unsigned long)src, len);
@@ -156,10 +156,10 @@ static int ksu_patch_text_nosync(void *dst, void *src, size_t len, int flags)
     clear_fixmap(FIX_TEXT_POKE0);
 
     if (!ret) {
-        if (flags & KSU_PATCH_TEXT_FLUSH_ICACHE)
-            ksu_flush_icache((uintptr_t)dst, (uintptr_t)dst + len);
-        if (flags & KSU_PATCH_TEXT_FLUSH_DCACHE)
-            ksu_flush_dcache(dst, len);
+        if (flags & XFG_PATCH_TEXT_FLUSH_ICACHE)
+            xfg_flush_icache((uintptr_t)dst, (uintptr_t)dst + len);
+        if (flags & XFG_PATCH_TEXT_FLUSH_DCACHE)
+            xfg_flush_dcache(dst, len);
     }
 
 err:
@@ -167,7 +167,7 @@ err:
     return ret;
 }
 
-static int ksu_patch_text_cb(void *arg)
+static int xfg_patch_text_cb(void *arg)
 {
     struct patch_text_info *pp = arg;
     void *dst = pp->dst, *src = pp->src;
@@ -178,7 +178,7 @@ static int ksu_patch_text_cb(void *arg)
 
     /* The last CPU becomes master */
     if (atomic_inc_return(&pp->cpu_count) == num_online_cpus()) {
-        ret = ksu_patch_text_nosync(dst, src, len, flags);
+        ret = xfg_patch_text_nosync(dst, src, len, flags);
         /* Notify other processors with an additional increment. */
         atomic_inc(&pp->cpu_count);
     } else {
@@ -190,7 +190,7 @@ static int ksu_patch_text_cb(void *arg)
     return ret;
 }
 
-int ksu_patch_text(void *dst, void *src, size_t len, int flags)
+int xfg_patch_text(void *dst, void *src, size_t len, int flags)
 {
     struct patch_text_info info = {
         .dst = dst,
@@ -200,7 +200,7 @@ int ksu_patch_text(void *dst, void *src, size_t len, int flags)
         .flags = flags,
     };
 
-    return stop_machine(ksu_patch_text_cb, &info, cpu_online_mask);
+    return stop_machine(xfg_patch_text_cb, &info, cpu_online_mask);
 }
 
 /*

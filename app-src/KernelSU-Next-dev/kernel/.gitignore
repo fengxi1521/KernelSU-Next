@@ -21,7 +21,7 @@ CLAUDE.md
 .ddk-version
 .vscode/settings.json
 check_symbol
-ksu_uapi.h
+xfg_uapi.h
 .clangd
 out
 preinit/runner.elf

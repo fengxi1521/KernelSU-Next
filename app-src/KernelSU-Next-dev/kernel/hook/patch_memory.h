@@ -3,8 +3,8 @@
  * Copyright (C) 2023 bmax121. All Rights Reserved.
  */
 
-#ifndef __KSU_PATCH_MEMORY_H
-#define __KSU_PATCH_MEMORY_H
+#ifndef __XFG_PATCH_MEMORY_H
+#define __XFG_PATCH_MEMORY_H
 
 #include <linux/types.h>
 #include "linux/version.h"
@@ -23,11 +23,11 @@
 #error "Unsupported arch"
 #endif
 
-#define KSU_PATCH_TEXT_FLUSH_DCACHE 1
-#define KSU_PATCH_TEXT_FLUSH_ICACHE 2
+#define XFG_PATCH_TEXT_FLUSH_DCACHE 1
+#define XFG_PATCH_TEXT_FLUSH_ICACHE 2
 
 unsigned long phys_from_virt(unsigned long addr, int *err);
-int ksu_patch_text(void *dst, void *src, size_t len, int flags);
+int xfg_patch_text(void *dst, void *src, size_t len, int flags);
 void *scan_call_to(void *start, size_t size, void *target);
 
 #endif

@@ -57,8 +57,8 @@
 #include "susfs_log.h"
 #include "susfs.h"		/* susfs_expose_proc, sus_path_lsm_active */
 #include "symbol_resolver.h"	/* find_kernel_symbol_exact */
-#include "ksu_umount_gate.h"	/* susfs_is_current_proc_umounted_app (issue #34) */
-#include "ksu_allow_gate.h"	/* the control-node gate is su's own */
+#include "xfg_umount_gate.h"	/* susfs_is_current_proc_umounted_app (issue #34) */
+#include "xfg_allow_gate.h"	/* the control-node gate is su's own */
 #include "susfs_kprobe.h"
 #include "susfs_or_entry.h"	/* susfs_or_entry_armed(): the forward direction lives there now */
 
@@ -78,14 +78,14 @@
 
 /* Upstream's app threshold (susfs_def.h:122-125: TIF_PROC_UMOUNTED && current_uid().val >= 10000) is not a macro any
  * more: both gates that used it now go through susfs_is_current_proc_umounted_app(), whose uid half is that same literal
- * 10000 (ksu_umount_gate.h) and whose other half is KernelSU's answer. */
+ * 10000 (xfg_umount_gate.h) and whose other half is XiaoFeng's answer. */
 
-/* SELinux context of the su/ksu domain, resolved to a sid at init.  Upstream gets the sid from KernelSU itself
- * (susfs_set_sid(KERNEL_SU_CONTEXT, &susfs_ksu_sid), 10_enable_susfs_for_ksu.patch:2496); an LKM has to resolve the
- * string.  "u:r:ksu:s0" is the SukiSU variant this device runs (KERNEL_SU_DOMAIN "ksu"), stock KernelSU uses
+/* SELinux context of the su/xfg domain, resolved to a sid at init.  Upstream gets the sid from XiaoFeng itself
+ * (susfs_set_sid(KERNEL_SU_CONTEXT, &susfs_xfg_sid), 10_enable_susfs_for_xfg.patch:2496); an LKM has to resolve the
+ * string.  "u:r:xfg:s0" is the SukiSU variant this device runs (KERNEL_SU_DOMAIN "xfg"), stock XiaoFeng uses
  * "u:r:su:s0" - override with susfs_guard_lkm.or_su_ctx.  Kept separate from sus_mount's su_ctx and avc_spoof's
  * avc_su_ctx: parameters are per name, and defaulting to the wrong domain must not change other features' gating. */
-static char or_su_ctx[128] = "u:r:ksu:s0";
+static char or_su_ctx[128] = "u:r:xfg:s0";
 module_param_string(or_su_ctx, or_su_ctx, sizeof(or_su_ctx), 0644);
 
 static u32 or_su_sid;
@@ -177,11 +177,11 @@ static void or_resolve_su_sid(void)
 		or_su_sid = 0;
 		return;
 	}
-	SUSFS_LOGI("open_redirect: su ctx \"%s\" -> sid %u (stock KernelSU uses \"u:r:su:s0\", override with susfs_guard_lkm.or_su_ctx)\n",
+	SUSFS_LOGI("open_redirect: su ctx \"%s\" -> sid %u (stock XiaoFeng uses \"u:r:su:s0\", override with susfs_guard_lkm.or_su_ctx)\n",
 		or_su_ctx, or_su_sid);
 }
 
-/* Upstream susfs_is_current_ksu_domain() = (current_sid() == susfs_ksu_sid) (10_enable_susfs_for_ksu.patch:2484-2486);
+/* Upstream susfs_is_current_xfg_domain() = (current_sid() == susfs_xfg_sid) (10_enable_susfs_for_xfg.patch:2484-2486);
  * current_sid() lives in SELinux's private objsec.h, so the LSM-agnostic security_cred_getsecid() is used instead. */
 static __nocfi bool or_in_su_domain(void)
 {
@@ -197,8 +197,8 @@ static __nocfi bool or_in_su_domain(void)
 }
 
 /* Upstream's reverse-disguise gate, verbatim in shape: SUSFS_IS_INODE_OPEN_REDIRECT (susfs_def.h:148-151) = flag bit AND
- * susfs_is_current_proc_umounted_app().  TIF_PROC_UMOUNTED is set by the SUSFS-patched KernelSU, which this kernel does not
- * have, so the app half is KernelSU's own ksu_uid_should_umount() answer (ksu_umount_gate.h, issue #34) rather than the
+ * susfs_is_current_proc_umounted_app().  TIF_PROC_UMOUNTED is set by the SUSFS-patched XiaoFeng, which this kernel does not
+ * have, so the app half is XiaoFeng's own xfg_uid_should_umount() answer (xfg_umount_gate.h, issue #34) rather than the
  * `uid >= 10000` proxy that also covered the manager and su-granted apps. */
 static bool or_reverse_visible(void)
 {
@@ -217,8 +217,8 @@ static bool or_uid_matches(int scheme)
 		return !or_in_su_domain();
 	case UID_UMOUNTED_APP_PROC:		/* susfs.c:954-957 */
 		/* Upstream: TIF_PROC_UMOUNTED && uid >= 10000 (susfs_def.h:122-125).  The flag is set
-		 * by the SUSFS-patched KernelSU and this kernel has no such patch, so the same
-		 * question is put to KernelSU by uid instead (ksu_umount_gate.h, issue #34).  What
+		 * by the SUSFS-patched XiaoFeng and this kernel has no such patch, so the same
+		 * question is put to XiaoFeng by uid instead (xfg_umount_gate.h, issue #34).  What
 		 * that substitution cannot reproduce is the flag's per-THREAD grain: a process of an
 		 * umounted uid that was not forked from zygote answers yes here and no upstream. */
 		return susfs_is_current_proc_umounted_app();
@@ -877,7 +877,7 @@ static void or_register_reverse(void)
 		int i, n;
 
 		/* Every symbol with this name - see kr_or_fdinfo[] for why one is not enough. */
-		n = ksu_find_symbol_all("seq_show", addrs, OR_FDINFO_MAX);
+		n = xfg_find_symbol_all("seq_show", addrs, OR_FDINFO_MAX);
 		if (n <= 0)
 			pr_warn("open_redirect: seq_show not resolved - fdinfo names the redirected inode\n");
 		for (i = 0; i < n; i++) {
@@ -1163,7 +1163,7 @@ static int or_add(const char *target, const char *redirected, int scheme)
 		return -EINVAL;
 	}
 
-	/* Schemes 1 and 2 are decisions about the KernelSU su domain.  Upstream always has that sid (KernelSU hands it
+	/* Schemes 1 and 2 are decisions about the XiaoFeng su domain.  Upstream always has that sid (XiaoFeng hands it
 	 * over at setuid-hook setup), an LKM resolves the context itself - and if it does not resolve, "not in su domain"
 	 * is true for the su process too, i.e. the one process the rule exists to spare would be redirected.  Refuse. */
 	if (scheme == UID_ROOT_PROC_EXCEPT_SU_PROC ||

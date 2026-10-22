@@ -22,7 +22,7 @@ import okhttp3.OkHttpClient
 import java.io.File
 import java.util.*
 
-lateinit var ksuApp: XiaoFengApplication
+lateinit var xfgApp: XiaoFengApplication
 
 class XiaoFengApplication : Application(), ViewModelStoreOwner {
 
@@ -32,7 +32,7 @@ class XiaoFengApplication : Application(), ViewModelStoreOwner {
     override fun onCreate() {
         super.onCreate()
         LocaleHelper.migrateLegacyLocale(this)
-        ksuApp = this
+        xfgApp = this
         Shell.setDefaultBuilder(createRootShellBuilder(true))
         Shell.enableVerboseLogging = BuildConfig.DEBUG
 

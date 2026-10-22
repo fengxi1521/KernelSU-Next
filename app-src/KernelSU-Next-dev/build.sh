@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# This script builds the KernelSU Next manager APK.
+# This script builds the XiaoFeng manager APK.
 
 # Ensure you have the setup Android SDK & NDK installed and necessary environment variables set and sourced.
 
-# For LKM make sure you have imported the androidX-X.X_kernelsu.ko drivers to userspace/ksud/bin/aarch64 directory.
+# For LKM make sure you have imported the androidX-X.X_xiaofeng.ko drivers to userspace/ksud/bin/aarch64 directory.
 
 export BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android="--sysroot=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android -I$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include"
 
@@ -12,7 +12,7 @@ CROSS_NO_WARNINGS=0 cross build --target aarch64-linux-android --release --manif
 
 mkdir -p manager/app/src/main/jniLibs/arm64-v8a/
 
-cp userspace/ksud/target/aarch64-linux-android/release/ksud manager/app/src/main/jniLibs/arm64-v8a/libksud.so
+cp userspace/ksud/target/aarch64-linux-android/release/xfgd manager/app/src/main/jniLibs/arm64-v8a/libxfgd.so
 
 cd manager
 
@@ -20,4 +20,4 @@ cd manager
 
 cd ..
 
-adb install manager/app/build/outputs/apk/release/KernelSU_Next_v*.apk
+adb install manager/app/build/outputs/apk/release/XiaoFeng_*.apk

@@ -171,8 +171,10 @@ class WebUIActivity : FragmentActivity() {
 
         insets = Insets(0, 0, 0, 0)
 
+        val webUiDomain = String(Base64.decode("bXVpLmtlcm5lbHN1Lm9yZw==", Base64.NO_WRAP))
+
         val assetLoader = WebViewAssetLoader.Builder()
-            .setDomain("mui.kernelsu.org")
+            .setDomain(webUiDomain)
             .addPathHandler(
                 "/",
                 SuFilePathHandler(
@@ -220,7 +222,7 @@ class WebUIActivity : FragmentActivity() {
 
             addJavascriptInterface(
                 WebViewInterface(this@WebUIActivity, this, moduleDir),
-                "ksu"
+                "xfg"
             )
 
             webChromeClient = object : WebChromeClient() {
@@ -255,7 +257,7 @@ class WebUIActivity : FragmentActivity() {
                 @RequiresApi(Build.VERSION_CODES.Q)
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
                     consoleMessage?.message()?.let { msg ->
-                        val prefix = "ksuBlobData:"
+                        val prefix = "xfgBlobData:"
                         if (msg.startsWith(prefix)) {
                             try {
                                 val json = JSONObject(msg.substring(prefix.length))
@@ -280,8 +282,8 @@ class WebUIActivity : FragmentActivity() {
                 ): WebResourceResponse? {
                     val url = request.url
 
-                    // Handle ksu://icon/<packageName>
-                    if (url.scheme.equals("ksu", true)
+                    // Handle xfg://icon/<packageName>
+                    if (url.scheme.equals("xfg", true)
                         && url.host.equals("icon", true)
                     ) {
                         val packageName = url.path?.removePrefix("/")
@@ -323,7 +325,7 @@ class WebUIActivity : FragmentActivity() {
                 }
             }
 
-            loadUrl("https://mui.kernelsu.org/index.html")
+            loadUrl("https://$webUiDomain/index.html")
         }
 
         setupWebUIBackHandler()

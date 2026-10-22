@@ -31,7 +31,7 @@ import com.ramcosta.composedestinations.annotation.RootGraph
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.navigation.EmptyDestinationsNavigator
 import com.xiao.feng.R
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.xiao.feng.ui.LocalNavBarEnabled
 import com.xiao.feng.ui.LocalScrollState
 import com.xiao.feng.ui.component.rememberLoadingDialog
@@ -46,7 +46,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
-private const val BUSYBOX = "/data/adb/ksu/bin/busybox"
+private const val BUSYBOX = "/data/adb/xfg/bin/busybox"
 
 /**
  * Backs up /data/adb/modules as a tar into [destUri].
@@ -57,14 +57,14 @@ private suspend fun backupModulesToUri(uri: Uri): Boolean = withContext(Dispatch
     if (modulesDir.listFiles()?.isEmpty() != false) return@withContext false
 
     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-    val tmpPath   = "${ksuApp.cacheDir}/modules_backup_$timestamp.tar"
+    val tmpPath   = "${xfgApp.cacheDir}/modules_backup_$timestamp.tar"
 
     val tarCmd = "$BUSYBOX tar -cpf '$tmpPath' -C /data/adb/modules \$(ls /data/adb/modules)"
     if (!ShellUtils.fastCmdResult(tarCmd)) return@withContext false
 
     return@withContext try {
         SuFile(tmpPath).newInputStream().use { input ->
-            ksuApp.contentResolver.openOutputStream(uri)?.use { out ->
+            xfgApp.contentResolver.openOutputStream(uri)?.use { out ->
                 input.copyTo(out)
             }
         }
@@ -78,21 +78,21 @@ private suspend fun backupModulesToUri(uri: Uri): Boolean = withContext(Dispatch
 }
 
 /**
- * Backs up /data/adb/ksu/.allowlist as a tar into [destUri].
+ * Backs up /data/adb/xfg/.allowlist as a tar into [destUri].
  * Tar is written to cacheDir, streamed to the user-chosen URI, then deleted.
  */
 private suspend fun backupAllowlistToUri(uri: Uri): Boolean = withContext(Dispatchers.IO) {
-    if (!SuFile("/data/adb/ksu/.allowlist").exists()) return@withContext false
+    if (!SuFile("/data/adb/xfg/.allowlist").exists()) return@withContext false
 
     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-    val tmpPath   = "${ksuApp.cacheDir}/allowlist_backup_$timestamp.tar"
+    val tmpPath   = "${xfgApp.cacheDir}/allowlist_backup_$timestamp.tar"
 
-    val tarCmd = "$BUSYBOX tar -cpf '$tmpPath' -C /data/adb/ksu .allowlist"
+    val tarCmd = "$BUSYBOX tar -cpf '$tmpPath' -C /data/adb/xfg .allowlist"
     if (!ShellUtils.fastCmdResult(tarCmd)) return@withContext false
 
     return@withContext try {
         SuFile(tmpPath).newInputStream().use { input ->
-            ksuApp.contentResolver.openOutputStream(uri)?.use { out ->
+            xfgApp.contentResolver.openOutputStream(uri)?.use { out ->
                 input.copyTo(out)
             }
         }
@@ -111,10 +111,10 @@ private suspend fun backupAllowlistToUri(uri: Uri): Boolean = withContext(Dispat
  */
 private suspend fun restoreModulesFromUri(uri: Uri): Boolean = withContext(Dispatchers.IO) {
     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-    val tmpPath   = "${ksuApp.cacheDir}/modules_restore_$timestamp.tar"
+    val tmpPath   = "${xfgApp.cacheDir}/modules_restore_$timestamp.tar"
 
     try {
-        ksuApp.contentResolver.openInputStream(uri)?.use { input ->
+        xfgApp.contentResolver.openInputStream(uri)?.use { input ->
             SuFile(tmpPath).newOutputStream().use { out ->
                 input.copyTo(out)
             }
@@ -137,10 +137,10 @@ private suspend fun restoreModulesFromUri(uri: Uri): Boolean = withContext(Dispa
  */
 private suspend fun restoreAllowlistFromUri(uri: Uri): Boolean = withContext(Dispatchers.IO) {
     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-    val tmpPath   = "${ksuApp.cacheDir}/allowlist_restore_$timestamp.tar"
+    val tmpPath   = "${xfgApp.cacheDir}/allowlist_restore_$timestamp.tar"
 
     try {
-        ksuApp.contentResolver.openInputStream(uri)?.use { input ->
+        xfgApp.contentResolver.openInputStream(uri)?.use { input ->
             SuFile(tmpPath).newOutputStream().use { out ->
                 input.copyTo(out)
             }
@@ -150,7 +150,7 @@ private suspend fun restoreAllowlistFromUri(uri: Uri): Boolean = withContext(Dis
         return@withContext false
     }
 
-    val extractCmd = "$BUSYBOX tar -xpf '$tmpPath' -C /data/adb/ksu"
+    val extractCmd = "$BUSYBOX tar -xpf '$tmpPath' -C /data/adb/xfg"
     val result = ShellUtils.fastCmdResult(extractCmd)
 
     SuFile(tmpPath).delete()

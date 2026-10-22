@@ -1,4 +1,3 @@
-use crate::assets;
 use crate::defs;
 use const_format::concatcp;
 use log::warn;
@@ -6,18 +5,15 @@ use serde::Deserialize;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::process::Command;
 use unicode_normalization::UnicodeNormalization;
 use anyhow::Result;
 
 const DEFAULT_RISK_JSON: &str = include_str!("../../../risk/risk.json");
-const REMOTE_RISK_URL: &str =
-    "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/risk/risk/risk.json";
 const RISK_CACHE_PATH: &str = concatcp!(defs::CACHE_DIR, "risk.json");
 
 const MAX_SCAN_BYTES_PER_FILE: u64 = 8 * 1024 * 1024;
 
-const RISK_CONFIG_MODULE_ID: &str = "internal.ksud.risk";
+const RISK_CONFIG_MODULE_ID: &str = "internal.xfgd.risk";
 const RISK_CONFIG_KEY: &str = "risk.enabled";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -66,26 +62,6 @@ pub fn should_update_risk_cache(local_json: &[u8], remote_json: &[u8]) -> bool {
     local.hash != remote.hash
 }
 
-fn fetch_remote_risk_json() -> Option<Vec<u8>> {
-    // Wrap wget with the timeout applet so a blackholed/hijacked network
-    // path cannot stall module installation indefinitely.
-    let script = format!(
-        "timeout 15 '{}' wget -q -O - -- '{}'",
-        assets::BUSYBOX_PATH, REMOTE_RISK_URL
-    );
-    let output = Command::new(assets::BUSYBOX_PATH)
-        .args(["ash", "-c", &script])
-        .output()
-        .ok()?;
-
-    if !output.status.success() {
-        warn!("Failed to fetch risk rules from {REMOTE_RISK_URL}");
-        return None;
-    }
-
-    Some(output.stdout)
-}
-
 fn load_risk_json() -> Vec<u8> {
     let cache_path = Path::new(RISK_CACHE_PATH);
     if let Err(err) = crate::utils::ensure_dir_exists(defs::CACHE_DIR) {
@@ -93,9 +69,8 @@ fn load_risk_json() -> Vec<u8> {
     }
 
     let local_bytes = std::fs::read(cache_path).ok();
-    // A hijacked/captive-portal response must never poison the on-disk
-    // cache, so only accept remote bytes that parse as a valid catalog.
-    let remote_bytes = fetch_remote_risk_json().filter(|bytes| parse_risk_catalog(bytes).is_ok());
+    // Remote rule updates are not used; the bundled catalog is authoritative.
+    let remote_bytes: Option<Vec<u8>> = None;
 
     match (local_bytes, remote_bytes) {
         (Some(local), Some(remote)) => {

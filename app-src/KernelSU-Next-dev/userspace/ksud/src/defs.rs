@@ -11,7 +11,7 @@ mod android {
     pub const BOOTLOG_TIMEOUT: &str = "30s";
 
     pub const ADB_DIR: &str = "/data/adb/";
-    pub const WORKING_DIR: &str = concatcp!(ADB_DIR, "ksu/");
+    pub const WORKING_DIR: &str = concatcp!(ADB_DIR, "xfg/");
     pub const CACHE_DIR: &str = concatcp!(WORKING_DIR, "cache/");
     pub const BINARY_DIR: &str = concatcp!(WORKING_DIR, "bin/");
     pub const LIBRARY_DIR: &str = concatcp!(WORKING_DIR, "lib/");
@@ -22,11 +22,11 @@ mod android {
     pub const PROFILE_SELINUX_DIR: &str = concatcp!(PROFILE_DIR, "selinux/");
     pub const PROFILE_TEMPLATE_DIR: &str = concatcp!(PROFILE_DIR, "templates/");
 
-    pub const KSURC_PATH: &str = concatcp!(WORKING_DIR, ".ksurc");
-    pub const DAEMON_PATH: &str = concatcp!(ADB_DIR, "ksud");
+    pub const XFGRC_PATH: &str = concatcp!(WORKING_DIR, ".xfgrc");
+    pub const DAEMON_PATH: &str = concatcp!(ADB_DIR, "xfgd");
     pub const LIBADBROOT_PATH: &str = concatcp!(LIBRARY_DIR, "libadbroot.so");
 
-    pub const DAEMON_LINK_PATH: &str = concatcp!(BINARY_DIR, "ksud");
+    pub const DAEMON_LINK_PATH: &str = concatcp!(BINARY_DIR, "xfgd");
 
     pub const MODULE_DIR: &str = concatcp!(ADB_DIR, "modules/");
     pub const MODULE_UPDATE_DIR: &str = concatcp!(ADB_DIR, "modules_update/");
@@ -36,9 +36,9 @@ mod android {
 
     // Preferred first: /metadata/vold (root:root 0700) hides best and does not
     // bump /metadata's nlink; else /metadata/watchdog (like Magisk); else /metadata.
-    pub const PREINIT_DIR_VOLD: &str = "/metadata/vold/ksu/";
-    pub const PREINIT_DIR_WATCHDOG: &str = "/metadata/watchdog/ksu/";
-    pub const PREINIT_DIR_DEFAULT: &str = "/metadata/ksu/";
+    pub const PREINIT_DIR_VOLD: &str = "/metadata/vold/xfg/";
+    pub const PREINIT_DIR_WATCHDOG: &str = "/metadata/watchdog/xfg/";
+    pub const PREINIT_DIR_DEFAULT: &str = "/metadata/xfg/";
     pub const METADATA_FILE_CON: &str = "u:object_r:metadata_file:s0";
     pub const VOLD_METADATA_FILE_CON: &str = "u:object_r:vold_metadata_file:s0";
     pub const MODULES_RC_FILE: &str = "modules.rc";
@@ -58,7 +58,7 @@ mod android {
     pub const MODULE_PREINIT_DIR: &str = "preinit";
     pub const PREINIT_CONF: &str = "preinit.conf";
     // Written by installer.sh when customize.sh requests a hot install
-    pub const HOT_INSTALL_MARKER: &str = ".ksu_hot_install";
+    pub const HOT_INSTALL_MARKER: &str = ".xfg_hot_install";
 
     // Module config system
     pub const MODULE_CONFIG_DIR: &str = concatcp!(WORKING_DIR, "module_configs/");
@@ -70,8 +70,8 @@ mod android {
     pub const METAMODULE_METAINSTALL_SCRIPT: &str = "metainstall.sh";
     pub const METAMODULE_METAUNINSTALL_SCRIPT: &str = "metauninstall.sh";
 
-    pub const KSU_BACKUP_DIR: &str = WORKING_DIR;
-    pub const KSU_BACKUP_FILE_PREFIX: &str = "ksun_backup_";
+    pub const XFG_BACKUP_DIR: &str = WORKING_DIR;
+    pub const XFG_BACKUP_FILE_PREFIX: &str = "xfgn_backup_";
     pub const BACKUP_FILENAME: &str = "stock_image.sha1";
 }
 
@@ -82,7 +82,7 @@ pub const VERSION_NAME: &str = include_str!(concat!(env!("OUT_DIR"), "/VERSION_N
 pub const FULL_VERSION: &str = const_format::formatcp!(
     "{} (uapi: {})",
     VERSION_NAME,
-    crate::ksu_uapi::KERNEL_SU_UAPI_VERSION
+    crate::xfg_uapi::KERNEL_SU_UAPI_VERSION
 );
 
 #[cfg(target_os = "android")]

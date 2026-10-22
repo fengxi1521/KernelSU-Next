@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.xiao.feng.ui.util.*
 
 data class SulogUiState(
@@ -34,7 +34,7 @@ data class SulogUiState(
 class SulogViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(SulogUiState())
     val uiState: StateFlow<SulogUiState> = _uiState.asStateFlow()
-    private val prefs = ksuApp.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    private val prefs = xfgApp.getSharedPreferences("settings", Context.MODE_PRIVATE)
     private val entriesFlow = MutableStateFlow<List<SulogEntry>>(emptyList())
     private val searchTextFlow = MutableStateFlow("")
     private val selectedFiltersFlow = MutableStateFlow(defaultSulogEventFilters())

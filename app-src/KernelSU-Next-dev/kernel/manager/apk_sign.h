@@ -1,5 +1,5 @@
-#ifndef __KSU_H_APK_V2_SIGN
-#define __KSU_H_APK_V2_SIGN
+#ifndef __XFG_H_APK_V2_SIGN
+#define __XFG_H_APK_V2_SIGN
 
 #include <linux/types.h>
 

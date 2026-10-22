@@ -6,9 +6,9 @@ use std::{
     process::Command,
 };
 
-use crate::ksucalls;
+use crate::xfgcalls;
 
-const KERNEL_PARAM_PATH: &str = "/sys/module/kernelsu";
+const KERNEL_PARAM_PATH: &str = "/sys/module/xiaofeng";
 
 fn read_u32(path: &PathBuf) -> Result<u32> {
     let content = std::fs::read_to_string(path)?;
@@ -20,10 +20,10 @@ fn read_u32(path: &PathBuf) -> Result<u32> {
 fn set_kernel_param(appid: u32) -> Result<()> {
     let kernel_param_path = Path::new(KERNEL_PARAM_PATH).join("parameters");
 
-    let ksu_debug_manager_appid = kernel_param_path.join("ksu_debug_manager_appid");
-    let before_appid = read_u32(&ksu_debug_manager_appid)?;
-    std::fs::write(&ksu_debug_manager_appid, appid.to_string())?;
-    let after_appid = read_u32(&ksu_debug_manager_appid)?;
+    let xfg_debug_manager_appid = kernel_param_path.join("xfg_debug_manager_appid");
+    let before_appid = read_u32(&xfg_debug_manager_appid)?;
+    std::fs::write(&xfg_debug_manager_appid, appid.to_string())?;
+    let after_appid = read_u32(&xfg_debug_manager_appid)?;
 
     println!("set manager appid: {before_appid} -> {after_appid}");
 
@@ -41,7 +41,7 @@ fn get_pkg_appid(pkg: &str) -> Result<u32> {
 pub fn set_manager(pkg: &str) -> Result<()> {
     ensure!(
         Path::new(KERNEL_PARAM_PATH).exists(),
-        "CONFIG_KSU_DEBUG is not enabled"
+        "CONFIG_XFG_DEBUG is not enabled"
     );
 
     let appid = get_pkg_appid(pkg)?;
@@ -52,7 +52,7 @@ pub fn set_manager(pkg: &str) -> Result<()> {
 }
 
 pub fn insmod(module: &Path, params: &[String]) -> Result<()> {
-    // KSU_IOCTL_LOOKUP_SYMBOLS was introduced in UAPI v6. Prefer resolving the
+    // XFG_IOCTL_LOOKUP_SYMBOLS was introduced in UAPI v6. Prefer resolving the
     // module's undefined (non-exported) symbols through it; older kernels, or a
     // failed lookup, fall back to /proc/kallsyms.
     const LOOKUP_SYMBOL_UAPI_VERSION: u32 = 6;
@@ -64,16 +64,16 @@ pub fn insmod(module: &Path, params: &[String]) -> Result<()> {
     let module_data =
         fs::read(&module).with_context(|| format!("read module failed: {}", module.display()))?;
 
-    if ksucalls::get_info().uapi_version >= LOOKUP_SYMBOL_UAPI_VERSION {
-        ksuinit::load_module_with_resolver(&module_data, &cparams, |names| {
-            ksucalls::lookup_symbols(names).or_else(|e| {
+    if xfgcalls::get_info().uapi_version >= LOOKUP_SYMBOL_UAPI_VERSION {
+        xfginit::load_module_with_resolver(&module_data, &cparams, |names| {
+            xfgcalls::lookup_symbols(names).or_else(|e| {
                 log::warn!("kernel symbol lookup failed: {e:#}, using /proc/kallsyms");
-                ksuinit::resolve_kallsyms(names)
+                xfginit::resolve_kallsyms(names)
             })
         })
     } else {
         log::info!("kernel symbol lookup unsupported, using /proc/kallsyms");
-        ksuinit::load_module(&module_data, &cparams)
+        xfginit::load_module(&module_data, &cparams)
     }
     .with_context(|| format!("load module failed: {}", module.display()))?;
 
@@ -83,7 +83,7 @@ pub fn insmod(module: &Path, params: &[String]) -> Result<()> {
 
 /// Get mark status for a process
 pub fn mark_get(pid: i32) -> Result<()> {
-    let result = ksucalls::mark_get(pid)?;
+    let result = xfgcalls::mark_get(pid)?;
     if pid == 0 {
         bail!("Please specify a pid to get its mark status");
     }
@@ -96,7 +96,7 @@ pub fn mark_get(pid: i32) -> Result<()> {
 
 /// Mark a process
 pub fn mark_set(pid: i32) -> Result<()> {
-    ksucalls::mark_set(pid)?;
+    xfgcalls::mark_set(pid)?;
     if pid == 0 {
         println!("All processes marked successfully");
     } else {
@@ -107,7 +107,7 @@ pub fn mark_set(pid: i32) -> Result<()> {
 
 /// Unmark a process
 pub fn mark_unset(pid: i32) -> Result<()> {
-    ksucalls::mark_unset(pid)?;
+    xfgcalls::mark_unset(pid)?;
     if pid == 0 {
         println!("All processes unmarked successfully");
     } else {
@@ -118,7 +118,7 @@ pub fn mark_unset(pid: i32) -> Result<()> {
 
 /// Refresh mark for all running processes
 pub fn mark_refresh() -> Result<()> {
-    ksucalls::mark_refresh()?;
+    xfgcalls::mark_refresh()?;
     println!("Refreshed mark for all running processes");
     Ok(())
 }

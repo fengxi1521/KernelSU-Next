@@ -42,7 +42,7 @@ import com.ramcosta.composedestinations.annotation.RootGraph
 import com.ramcosta.composedestinations.generated.destinations.AppProfileScreenDestination
 import com.ramcosta.composedestinations.generated.destinations.SulogScreenDestination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.xiao.feng.Natives
 import com.xiao.feng.R
 import com.xiao.feng.ui.component.SearchAppBar
@@ -175,7 +175,7 @@ fun SuperUserScreen(navigator: DestinationsNavigator) {
                 )
             ) {
                 items(
-                    viewModel.appList.filter { it.displayIdentifier != ksuApp.packageName },
+                    viewModel.appList.filter { it.displayIdentifier != xfgApp.packageName },
                     key = { it.displayIdentifier + it.uid }
                 ) { app ->
                     AppItem(app) {

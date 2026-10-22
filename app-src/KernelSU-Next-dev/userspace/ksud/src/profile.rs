@@ -1,5 +1,5 @@
 use crate::utils::ensure_dir_exists;
-use crate::{defs, ksu_uapi, ksucalls, sepolicy};
+use crate::{defs, xfg_uapi, xfgcalls, sepolicy};
 use anyhow::{Context, Result, bail};
 use std::path::Path;
 
@@ -18,7 +18,7 @@ pub fn get_sepolicy(pkg: String) -> Result<()> {
     Ok(())
 }
 
-// ksud doesn't guarteen the correctness of template, it just save
+// xfgd doesn't guarteen the correctness of template, it just save
 pub fn set_template(id: String, template: String) -> Result<()> {
     ensure_dir_exists(defs::PROFILE_TEMPLATE_DIR)?;
     let template_file = Path::new(defs::PROFILE_TEMPLATE_DIR).join(id);
@@ -241,14 +241,14 @@ fn bits_from_names(values: &[String], names: &[&str], what: &str) -> Result<u64>
 }
 
 /// Read a kernel profile into the shape that is printed.
-fn from_kernel(profile: &ksu_uapi::app_profile, stored: bool) -> Result<AppProfile> {
-    let key = ksucalls::read_c_str(&profile.key);
+fn from_kernel(profile: &xfg_uapi::app_profile, stored: bool) -> Result<AppProfile> {
+    let key = xfgcalls::read_c_str(&profile.key);
     let allow_su = profile.allow_su;
 
     // Reading the half the union is not holding would be reading rubbish, so allow_su picks.
     let (root, non_root) = if allow_su {
         let rp = unsafe { profile.__bindgen_anon_1.rp_config };
-        let template = ksucalls::read_c_str(&rp.template_name);
+        let template = xfgcalls::read_c_str(&rp.template_name);
         let groups_count = (rp.profile.groups_count as usize).min(rp.profile.groups.len());
         (
             Some(RootProfile {
@@ -259,7 +259,7 @@ fn from_kernel(profile: &ksu_uapi::app_profile, stored: bool) -> Result<AppProfi
                 groups: rp.profile.groups[..groups_count].to_vec(),
                 // The manager writes only the effective set, and the kernel derives the rest.
                 capabilities: names_from_bits(rp.profile.capabilities.effective, &CAPABILITIES),
-                selinux_domain: ksucalls::read_c_str(&rp.profile.selinux_domain),
+                selinux_domain: xfgcalls::read_c_str(&rp.profile.selinux_domain),
                 namespace: Namespace::from_kernel(rp.profile.namespaces)?,
                 flags: names_from_bits(rp.profile.flags, &FLAGS),
             }),
@@ -287,8 +287,8 @@ fn from_kernel(profile: &ksu_uapi::app_profile, stored: bool) -> Result<AppProfi
 }
 
 /// Lay one out for the kernel. `allow_su` decides which half of the union is filled in.
-fn to_kernel(wanted: &AppProfile, uid: i32) -> Result<ksu_uapi::app_profile> {
-    let mut profile = ksucalls::new_profile(&wanted.key, uid)?;
+fn to_kernel(wanted: &AppProfile, uid: i32) -> Result<xfg_uapi::app_profile> {
+    let mut profile = xfgcalls::new_profile(&wanted.key, uid)?;
     profile.allow_su = wanted.allow_su;
 
     match (wanted.allow_su, &wanted.root, &wanted.non_root) {
@@ -296,11 +296,11 @@ fn to_kernel(wanted: &AppProfile, uid: i32) -> Result<ksu_uapi::app_profile> {
         (true, None, _) => bail!("allow_su requires a root section"),
         (false, _, None) => bail!("allow_su=false requires a non_root section"),
         (true, Some(root), None) => {
-            let mut rp: ksu_uapi::app_profile__bindgen_ty_1__bindgen_ty_1 =
+            let mut rp: xfg_uapi::app_profile__bindgen_ty_1__bindgen_ty_1 =
                 unsafe { std::mem::zeroed() };
             rp.use_default = root.use_default;
             if let Some(template) = &root.template {
-                ksucalls::write_c_str(&mut rp.template_name, template).context("template")?;
+                xfgcalls::write_c_str(&mut rp.template_name, template).context("template")?;
             }
             rp.profile.uid = root.uid;
             rp.profile.gid = root.gid;
@@ -315,14 +315,14 @@ fn to_kernel(wanted: &AppProfile, uid: i32) -> Result<ksu_uapi::app_profile> {
             rp.profile.groups[..root.groups.len()].copy_from_slice(&root.groups);
             rp.profile.capabilities.effective =
                 bits_from_names(&root.capabilities, &CAPABILITIES, "capability")?;
-            ksucalls::write_c_str(&mut rp.profile.selinux_domain, &root.selinux_domain)
+            xfgcalls::write_c_str(&mut rp.profile.selinux_domain, &root.selinux_domain)
                 .context("selinux domain")?;
             rp.profile.namespaces = root.namespace.to_kernel();
             rp.profile.flags = bits_from_names(&root.flags, &FLAGS, "flag")?;
             profile.__bindgen_anon_1.rp_config = rp;
         }
         (false, None, Some(non_root)) => {
-            let mut nrp: ksu_uapi::app_profile__bindgen_ty_1__bindgen_ty_2 =
+            let mut nrp: xfg_uapi::app_profile__bindgen_ty_1__bindgen_ty_2 =
                 unsafe { std::mem::zeroed() };
             nrp.use_default = non_root.use_default;
             nrp.profile.umount_modules = non_root.umount_modules;
@@ -370,7 +370,7 @@ fn fallback_profile(key: &str, uid: i32) -> Result<AppProfile> {
         true
     } else {
         // Whatever the global default profile says, since that is what will apply.
-        match ksucalls::get_app_profile(DEFAULT_NON_ROOT_KEY, DEFAULT_NON_ROOT_UID)? {
+        match xfgcalls::get_app_profile(DEFAULT_NON_ROOT_KEY, DEFAULT_NON_ROOT_UID)? {
             Some(profile) if !profile.allow_su => {
                 unsafe { profile.__bindgen_anon_1.nrp_config }
                     .profile
@@ -395,7 +395,7 @@ fn fallback_profile(key: &str, uid: i32) -> Result<AppProfile> {
 /// Print the profile of one app as JSON.
 pub fn get_profile(key: &str, uid: Option<i32>) -> Result<()> {
     let uid = resolve_uid(key, uid)?;
-    let profile = match ksucalls::get_app_profile(key, uid)? {
+    let profile = match xfgcalls::get_app_profile(key, uid)? {
         Some(profile) => from_kernel(&profile, true)?,
         None => fallback_profile(key, uid)?,
     };
@@ -419,5 +419,5 @@ pub fn set_profile(file: Option<&str>) -> Result<()> {
 
     let profile: AppProfile = serde_json::from_str(&text).context("could not parse the profile")?;
     let uid = resolve_uid(&profile.key, profile.uid)?;
-    ksucalls::set_app_profile(&to_kernel(&profile, uid)?)
+    xfgcalls::set_app_profile(&to_kernel(&profile, uid)?)
 }

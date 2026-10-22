@@ -54,8 +54,8 @@
 #include "susfs_log.h"
 #include "susfs.h"	/* susfs_expose_proc, sus_path_dirent_filter(), SUS_NR_GETDENTS*_COMPAT */
 #include "susfs_fp_hook.h"	/* struct susfs_fp_hook + install/remove/drain: the table entries */
-#include "ksu_umount_gate.h"	/* susfs_is_current_proc_umounted_app (issue #34) */
-#include "ksu_allow_gate.h"	/* the control-node gate is su's own */
+#include "xfg_umount_gate.h"	/* susfs_is_current_proc_umounted_app (issue #34) */
+#include "xfg_allow_gate.h"	/* the control-node gate is su's own */
 #include "susfs_kprobe.h"
 
 /* KSTAT_SPOOF_* bits live in susfs_abi.h (upstream declares them in susfs.h next to struct
@@ -170,10 +170,10 @@ static_assert(offsetof(struct stat, st_ctime) == ST_CTIME_OFF, "stat.st_ctime");
 /* ---- the read gate ----
  *
  * Upstream gates every sus_kstat read on susfs_is_current_proc_umounted_app(), exactly
- * (TIF_PROC_UMOUNTED && current_uid().val >= 10000).  KernelSU's setuid_hook sets that flag only
+ * (TIF_PROC_UMOUNTED && current_uid().val >= 10000).  XiaoFeng's setuid_hook sets that flag only
  * with the SUSFS integration compiled into the kernel, which this kernel has none of, so the flag
- * is asked of KernelSU itself instead: susfs_is_current_proc_umounted_app() answers it with
- * ksu_uid_should_umount() (ksu_umount_gate.h, issue #34).  The old `uid >= 10000` proxy spoofed for
+ * is asked of XiaoFeng itself instead: susfs_is_current_proc_umounted_app() answers it with
+ * xfg_uid_should_umount() (xfg_umount_gate.h, issue #34).  The old `uid >= 10000` proxy spoofed for
  * every app uid, the manager and su-granted apps included.
  * Without any gate the spoofing would be visible to root too, wider than upstream.  Writers
  * (supercall, /proc) are configuration and stay ungated. */
@@ -525,7 +525,7 @@ struct kstat_call_counters {
 	atomic_t no_buf;	/* statbuf argument was NULL */
 	atomic_t rewrite;	/* the buffer really changed */
 	atomic_t miss_empty;	/* no rule registered at all */
-	atomic_t miss_gate;	/* gate: not an app process KernelSU would umount modules for */
+	atomic_t miss_gate;	/* gate: not an app process XiaoFeng would umount modules for */
 	atomic_t miss_lookup;	/* the (ino,dev) key matched no rule */
 	atomic_t match_noflag;	/* matched, but this buffer has no field we impersonate */
 	atomic_t uaccess;	/* copy_from_user/copy_to_user failed */
@@ -2078,7 +2078,7 @@ void susfs_kstat_supercall(unsigned int cmd, void __user **arg)
 out:
 	/* Upstream (fs/susfs.c susfs_add_sus_kstat) writes back ONLY the err field for this
 	 * input-type command, never the whole struct: copying the full struct back would overrun a
-	 * caller whose own struct is smaller/differently laid out (the prebuilt ksu_susfs tool) and
+	 * caller whose own struct is smaller/differently laid out (the prebuilt xfg_susfs tool) and
 	 * corrupt its stack - match upstream exactly. */
 	if (copy_to_user(&((struct st_susfs_sus_kstat __user *)*arg)->err,
 			 &info.err, sizeof(info.err)))

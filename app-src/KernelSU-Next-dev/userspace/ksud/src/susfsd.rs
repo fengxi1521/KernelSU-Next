@@ -4,7 +4,7 @@ use libc::{syscall, SYS_reboot, c_char};
 use log::{info, warn};
 
 // Constants from susfsd.c
-const KSU_INSTALL_MAGIC1: u64 = 0xDEADBEEF;
+const XFG_INSTALL_MAGIC1: u64 = 0xDEADBEEF;
 const SUSFS_MAGIC: u64 = 0xFAFAFAFA;
 
 const CMD_SUSFS_SHOW_VERSION: u64 = 0x555e1;
@@ -16,7 +16,7 @@ const SUSFS_MAX_VERSION_BUFSIZE: usize = 16;
 const SUSFS_MAX_VARIANT_BUFSIZE: usize = 16;
 
 const ERR_CMD_NOT_SUPPORTED: i32 = 126;
-const AUTOLOAD_CONFIG_MODULE_ID: &str = "internal.ksud.susfsd";
+const AUTOLOAD_CONFIG_MODULE_ID: &str = "internal.xfgd.susfsd";
 const AUTOLOAD_ENABLED_CONFIG_KEY: &str = "autoload.enabled";
 const AUTOLOAD_FALLBACK_KMI_CONFIG_KEY: &str = "autoload.fallback_kmi";
 
@@ -85,7 +85,7 @@ pub fn set_autoload(enabled: bool, kmi: Option<&str>) -> Result<()> {
     let kmi = match kmi {
         Some(kmi) => kmi.to_owned(),
         None => crate::boot_patch::get_current_kmi().context(
-            "Failed to detect kernel KMI; specify it with `ksud susfs autoload enable --kmi <KMI>`",
+            "Failed to detect kernel KMI; specify it with `xfgd susfs autoload enable --kmi <KMI>`",
         )?,
     };
     validate_kmi(&kmi)?;
@@ -120,7 +120,7 @@ fn detected_susfs_version() -> Option<String> {
     unsafe {
         syscall(
             SYS_reboot,
-            KSU_INSTALL_MAGIC1,
+            XFG_INSTALL_MAGIC1,
             SUSFS_MAGIC,
             CMD_SUSFS_SHOW_VERSION,
             &mut cmd as *mut _,
@@ -181,7 +181,7 @@ pub fn load(kmi: Option<&str>) -> Result<()> {
     let kmi = match kmi {
         Some(kmi) => kmi.to_owned(),
         None => crate::boot_patch::get_current_kmi().context(
-            "Failed to detect kernel KMI; specify it explicitly with `ksud susfs load --kmi <KMI>`",
+            "Failed to detect kernel KMI; specify it explicitly with `xfgd susfs load --kmi <KMI>`",
         )?,
     };
 
@@ -191,7 +191,7 @@ pub fn load(kmi: Option<&str>) -> Result<()> {
     let params = CString::new("").expect("empty module parameters are valid");
 
     info!("Loading SUSFS guard LKM for KMI {kmi}");
-    ksuinit::load_module(&module_data, &params).context("Failed to load SUSFS guard LKM")?;
+    xfginit::load_module(&module_data, &params).context("Failed to load SUSFS guard LKM")?;
     println!("Loaded SUSFS guard LKM for KMI {kmi}");
     Ok(())
 }
@@ -228,7 +228,7 @@ pub fn show_version() -> Result<()> {
     };
 
     unsafe {
-        syscall(SYS_reboot, KSU_INSTALL_MAGIC1, SUSFS_MAGIC, CMD_SUSFS_SHOW_VERSION, &mut cmd as *mut _);
+        syscall(SYS_reboot, XFG_INSTALL_MAGIC1, SUSFS_MAGIC, CMD_SUSFS_SHOW_VERSION, &mut cmd as *mut _);
     }
 
     check_unsupported(cmd.err, CMD_SUSFS_SHOW_VERSION)?;
@@ -249,7 +249,7 @@ pub fn show_variant() -> Result<()> {
     };
 
     unsafe {
-        syscall(SYS_reboot, KSU_INSTALL_MAGIC1, SUSFS_MAGIC, CMD_SUSFS_SHOW_VARIANT, &mut cmd as *mut _);
+        syscall(SYS_reboot, XFG_INSTALL_MAGIC1, SUSFS_MAGIC, CMD_SUSFS_SHOW_VARIANT, &mut cmd as *mut _);
     }
 
     check_unsupported(cmd.err, CMD_SUSFS_SHOW_VARIANT)?;
@@ -270,7 +270,7 @@ pub fn show_features(check_only: bool) -> Result<()> {
     };
 
     unsafe {
-        syscall(SYS_reboot, KSU_INSTALL_MAGIC1, SUSFS_MAGIC, CMD_SUSFS_SHOW_ENABLED_FEATURES, &mut cmd as *mut _);
+        syscall(SYS_reboot, XFG_INSTALL_MAGIC1, SUSFS_MAGIC, CMD_SUSFS_SHOW_ENABLED_FEATURES, &mut cmd as *mut _);
     }
 
     check_unsupported(cmd.err, CMD_SUSFS_SHOW_ENABLED_FEATURES)?;
@@ -295,7 +295,7 @@ pub fn show_features(check_only: bool) -> Result<()> {
 
 fn check_unsupported(err: i32, cmd: u64) -> Result<()> {
     if err == ERR_CMD_NOT_SUPPORTED {
-        return Err(anyhow!("CMD: '0x{:x}', SUSFS operation not supported, please enable it in kernel", cmd));
+        return Err(anyhow!("CMD: '0x{:x}', SUSFS operation not supported, please enable it in kernel first", cmd));
     }
     Ok(())
 }

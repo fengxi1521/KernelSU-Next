@@ -53,7 +53,7 @@ static int find_kernel_symbol_exact_cb(void *data, unsigned long addr)
 }
 #endif
 
-struct ksu_lookup_symbol_ctx {
+struct xfg_lookup_symbol_ctx {
     const char *symbol_name;
     size_t symbol_len;
     void *match;
@@ -81,7 +81,7 @@ unsigned long __nocfi find_kernel_symbol_exact(const char *symbol_name)
     return addr;
 }
 
-static inline bool ksu_symbol_has_suffix(const char *name, size_t name_len, const char *suffix, size_t suffix_len)
+static inline bool xfg_symbol_has_suffix(const char *name, size_t name_len, const char *suffix, size_t suffix_len)
 {
     return name_len >= suffix_len && strcmp(name + name_len - suffix_len, suffix) == 0;
 }
@@ -92,7 +92,7 @@ static int lookup_symbol_variant_cb(void *data, const char *name, unsigned long 
 static int lookup_symbol_variant_cb(void *data, const char *name, struct module *mod, unsigned long addr)
 #endif
 {
-    struct ksu_lookup_symbol_ctx *ctx = data;
+    struct xfg_lookup_symbol_ctx *ctx = data;
     size_t name_len;
 
     if (!name || !addr)
@@ -107,7 +107,7 @@ static int lookup_symbol_variant_cb(void *data, const char *name, struct module 
     }
 
 #if !USE_KCFI
-    if (ksu_symbol_has_suffix(name, name_len, cfi_suffix, cfi_suffix_len)) {
+    if (xfg_symbol_has_suffix(name, name_len, cfi_suffix, cfi_suffix_len)) {
         ctx->match = (void *)addr;
         pr_info("use .cfi_jt variant: %s\n", name);
         return 1;
@@ -127,7 +127,7 @@ static int lookup_symbol_variant_cb(void *data, const char *name, struct module 
 
 static __nocfi void *resolve_symbol_variant(const char *symbol_name, size_t symbol_len)
 {
-    struct ksu_lookup_symbol_ctx ctx = {
+    struct xfg_lookup_symbol_ctx ctx = {
         .symbol_name = symbol_name,
         .symbol_len = symbol_len,
     };
@@ -143,7 +143,7 @@ static __nocfi void *resolve_symbol_variant(const char *symbol_name, size_t symb
     return ctx.match;
 }
 
-void *ksu_resolve_symbol_for_functable_hook(const char *symbol_name)
+void *xfg_resolve_symbol_for_functable_hook(const char *symbol_name)
 {
     void *addr;
     size_t symbol_len;
@@ -177,38 +177,38 @@ void *ksu_resolve_symbol_for_functable_hook(const char *symbol_name)
 #endif
 }
 
-struct ksu_batch_entry {
+struct xfg_batch_entry {
     const char *name;
     unsigned long addr;
     u32 idx;
 };
 
-struct ksu_batch_ctx {
-    struct ksu_batch_entry *entries; // sorted by name
+struct xfg_batch_ctx {
+    struct xfg_batch_entry *entries; // sorted by name
     u32 count;
     u32 remaining;
     char key[KSYM_NAME_LEN];
 };
 
-static int ksu_batch_entry_cmp(const void *a, const void *b)
+static int xfg_batch_entry_cmp(const void *a, const void *b)
 {
-    return strcmp(((const struct ksu_batch_entry *)a)->name, ((const struct ksu_batch_entry *)b)->name);
+    return strcmp(((const struct xfg_batch_entry *)a)->name, ((const struct xfg_batch_entry *)b)->name);
 }
 
-static int ksu_batch_key_cmp(const void *key, const void *elt)
+static int xfg_batch_key_cmp(const void *key, const void *elt)
 {
-    return strcmp(key, ((const struct ksu_batch_entry *)elt)->name);
+    return strcmp(key, ((const struct xfg_batch_entry *)elt)->name);
 }
 
 /*
  * Match one kallsyms entry against the requested names. Same rule as
- * ksuinit's /proc/kallsyms walk: the kernel name is cut at the first '$',
+ * xfginit's /proc/kallsyms walk: the kernel name is cut at the first '$',
  * else at ".llvm.", and the first match in kallsyms order wins.
  * Returns 1 to stop the walk once every name is resolved.
  */
-static int ksu_batch_match(struct ksu_batch_ctx *ctx, const char *name, unsigned long addr)
+static int xfg_batch_match(struct xfg_batch_ctx *ctx, const char *name, unsigned long addr)
 {
-    struct ksu_batch_entry *e, *end = ctx->entries + ctx->count;
+    struct xfg_batch_entry *e, *end = ctx->entries + ctx->count;
     const char *cut, *key = name;
     size_t len;
 
@@ -229,7 +229,7 @@ static int ksu_batch_match(struct ksu_batch_ctx *ctx, const char *name, unsigned
         key = ctx->key;
     }
 
-    e = bsearch(key, ctx->entries, ctx->count, sizeof(*e), ksu_batch_key_cmp);
+    e = bsearch(key, ctx->entries, ctx->count, sizeof(*e), xfg_batch_key_cmp);
     if (!e)
         return 0;
     // The same name may be requested more than once.
@@ -245,41 +245,41 @@ static int ksu_batch_match(struct ksu_batch_ctx *ctx, const char *name, unsigned
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
-static int ksu_batch_cb(void *data, const char *name, unsigned long addr)
+static int xfg_batch_cb(void *data, const char *name, unsigned long addr)
 {
-    return ksu_batch_match(data, name, addr);
+    return xfg_batch_match(data, name, addr);
 }
 #else
-static int ksu_batch_cb(void *data, const char *name, struct module *mod, unsigned long addr)
+static int xfg_batch_cb(void *data, const char *name, struct module *mod, unsigned long addr)
 {
-    // vmlinux symbols come first; like ksuinit, stop at module symbols.
+    // vmlinux symbols come first; like xfginit, stop at module symbols.
     if (mod)
         return 1;
-    return ksu_batch_match(data, name, addr);
+    return xfg_batch_match(data, name, addr);
 }
 #endif
 
 #if HAVE_ON_EACH_MATCH_SYMBOL
 // Equal names are ordered by address, i.e. kallsyms order: keep the first.
-static int ksu_first_match_cb(void *data, unsigned long addr)
+static int xfg_first_match_cb(void *data, unsigned long addr)
 {
     *(unsigned long *)data = addr;
     return 1;
 }
 
 // Indexed per-name lookups, which also strip ".llvm." where the kernel does.
-static __nocfi int ksu_batch_lookup_indexed(struct ksu_batch_ctx *ctx)
+static __nocfi int xfg_batch_lookup_indexed(struct xfg_batch_ctx *ctx)
 {
     u32 i;
 
     if (!kallsyms_on_each_match_symbol_fn)
         return 0;
     for (i = 0; i < ctx->count && ctx->remaining; i++) {
-        struct ksu_batch_entry *e = &ctx->entries[i];
+        struct xfg_batch_entry *e = &ctx->entries[i];
 
         if (e->addr)
             continue;
-        kallsyms_on_each_match_symbol_fn(ksu_first_match_cb, e->name, &e->addr);
+        kallsyms_on_each_match_symbol_fn(xfg_first_match_cb, e->name, &e->addr);
         if (!e->addr)
             continue;
         ctx->remaining--;
@@ -305,9 +305,9 @@ static __nocfi int ksu_batch_lookup_indexed(struct ksu_batch_ctx *ctx)
  * names) and every name on older kernels, where a lookup by name is a linear
  * scan, is resolved by a single kallsyms walk.
  */
-int __nocfi ksu_lookup_kernel_symbols(const char *const *names, unsigned long *addrs, u32 count)
+int __nocfi xfg_lookup_kernel_symbols(const char *const *names, unsigned long *addrs, u32 count)
 {
-    struct ksu_batch_ctx *ctx;
+    struct xfg_batch_ctx *ctx;
     int ret = 0;
     u32 i, n = 0;
 
@@ -331,17 +331,17 @@ int __nocfi ksu_lookup_kernel_symbols(const char *const *names, unsigned long *a
     }
     ctx->count = n;
     ctx->remaining = n;
-    sort(ctx->entries, n, sizeof(*ctx->entries), ksu_batch_entry_cmp, NULL);
+    sort(ctx->entries, n, sizeof(*ctx->entries), xfg_batch_entry_cmp, NULL);
 
 #if HAVE_ON_EACH_MATCH_SYMBOL
     if (n)
-        ret = ksu_batch_lookup_indexed(ctx);
+        ret = xfg_batch_lookup_indexed(ctx);
 #endif
 
     if (ret >= 0 && ctx->remaining) {
 #if !ALWAYS_HAVE_ON_EACH_SYMBOL
         if (kallsyms_on_each_symbol_fn) {
-            ret = kallsyms_on_each_symbol_fn(ksu_batch_cb, ctx);
+            ret = kallsyms_on_each_symbol_fn(xfg_batch_cb, ctx);
         } else {
             // No kallsyms walker: fall back to exact per-name lookups.
             for (i = 0; i < n; i++) {
@@ -356,7 +356,7 @@ int __nocfi ksu_lookup_kernel_symbols(const char *const *names, unsigned long *a
             }
         }
 #else
-        ret = kallsyms_on_each_symbol(ksu_batch_cb, ctx);
+        ret = kallsyms_on_each_symbol(xfg_batch_cb, ctx);
 #endif
     }
 
@@ -374,7 +374,7 @@ int __nocfi ksu_lookup_kernel_symbols(const char *const *names, unsigned long *a
     return ret;
 }
 
-void __init ksu_init_symbol_resolver()
+void __init xfg_init_symbol_resolver()
 {
 #if !ALWAYS_HAVE_ON_EACH_SYMBOL
     kallsyms_on_each_symbol_fn = find_kernel_symbol_exact("kallsyms_on_each_symbol");

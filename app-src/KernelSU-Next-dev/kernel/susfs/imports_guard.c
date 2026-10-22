@@ -4,7 +4,7 @@
  *
  * Every symbol this module imports is a strong SHN_UNDEF entry, and the kernel does not export all
  * of them (a plain `insmod` left eight of 95 unresolved on the device measured here), so the image
- * is normally absolutized before it reaches the kernel: `ksud insmod` and the bundled susfs_insmod
+ * is normally absolutized before it reaches the kernel: `xfgd insmod` and the bundled susfs_insmod
  * turn each SHN_UNDEF into SHN_ABS with the address kallsyms has for that name.
  *
  * The case worth defending against is a loader that cannot find a name and continues with the value
@@ -178,7 +178,7 @@ int susfs_imports_guard(void)
     if (!bad)
         return 0;
 
-    pr_err("%u of %u imported symbol(s) have no kernel address (%s%s%s%s%s%s) - this image was not absolutized before init_module(). Load it with `ksud insmod` or the bundled `susfs_insmod`, not with a plain `insmod` (or with a loader that continues after an unresolved name): the kernel accepts a zero address here without complaining, and the first call through it jumps to 0. Refusing to load (module version %s).\n",
+    pr_err("%u of %u imported symbol(s) have no kernel address (%s%s%s%s%s%s) - this image was not absolutized before init_module(). Load it with `xfgd insmod` or the bundled `susfs_insmod`, not with a plain `insmod` (or with a loader that continues after an unresolved name): the kernel accepts a zero address here without complaining, and the first call through it jumps to 0. Refusing to load (module version %s).\n",
            bad, (unsigned int)ARRAY_SIZE(susfs_imports), first ? first : "?",
            second ? ", " : "", second ? second : "",
            third ? ", " : "", third ? third : "",
@@ -208,7 +208,7 @@ int __nocfi susfs_imports_crosscheck(void)
 
         if (!susfs_imports[i].compare)
             continue;
-        n = ksu_find_symbol_all(susfs_imports[i].name, addrs, 2);
+        n = xfg_find_symbol_all(susfs_imports[i].name, addrs, 2);
 
         /* 0 = this kernel does not have the name (or the resolver could not be bootstrapped),
          * 2 = the name is ambiguous; in both cases there is nothing to compare against. */
@@ -240,7 +240,7 @@ int __nocfi susfs_imports_crosscheck(void)
     if (!bad)
         return 0;
 
-    pr_err("%u imported data symbol(s) do not match this kernel's kallsyms - the image was absolutized from the wrong symbol table (a stale /proc/kallsyms, or the wrong occurrence of a name that appears more than once). Load it with `ksud insmod` or the bundled `susfs_insmod` and reload; refusing to load.\n",
+    pr_err("%u imported data symbol(s) do not match this kernel's kallsyms - the image was absolutized from the wrong symbol table (a stale /proc/kallsyms, or the wrong occurrence of a name that appears more than once). Load it with `xfgd insmod` or the bundled `susfs_insmod` and reload; refusing to load.\n",
            bad);
     return -EINVAL;
 }

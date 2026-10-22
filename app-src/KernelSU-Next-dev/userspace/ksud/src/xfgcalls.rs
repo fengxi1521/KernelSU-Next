@@ -1,7 +1,7 @@
 #![allow(clippy::unreadable_literal)]
 use anyhow::{Context, Result, bail};
 
-use crate::ksu_uapi;
+use crate::xfg_uapi;
 use std::cell::Cell;
 use std::fs;
 use std::io;
@@ -58,8 +58,8 @@ extern "C" fn sigsys_handler(
         }
         #[cfg(target_arch = "riscv64")]
         {
-            let ucontext = ctx.cast::<ksu_uapi::ucontext_t>();
-            (*ucontext).uc_mcontext.__gregs[ksu_uapi::REG_A0 as usize] =
+            let ucontext = ctx.cast::<xfg_uapi::ucontext_t>();
+            (*ucontext).uc_mcontext.__gregs[xfg_uapi::REG_A0 as usize] =
                 (-libc::EPERM) as libc::c_ulong;
         }
     }
@@ -78,12 +78,12 @@ pub fn setup_sigsys_handler() {
     }
 }
 
-const DRIVER_FD_NAME: &str = "anon_inode:[ksu_driver]";
-const SU_DRIVER_FD_NAME: &str = "anon_inode:[ksu_driver_su]";
+const DRIVER_FD_NAME: &str = "anon_inode:[xfg_driver]";
+const SU_DRIVER_FD_NAME: &str = "anon_inode:[xfg_driver_su]";
 
 // Global driver fd cache
 static DRIVER_FD: OnceLock<RawFd> = OnceLock::new();
-static INFO_CACHE: OnceLock<ksu_uapi::ksu_get_info_cmd> = OnceLock::new();
+static INFO_CACHE: OnceLock<xfg_uapi::xfg_get_info_cmd> = OnceLock::new();
 
 fn scan_driver_fd() -> io::Result<Option<RawFd>> {
     let fd_dir = fs::read_dir("/proc/self/fd")?;
@@ -124,15 +124,15 @@ fn init_driver_fd() -> Option<RawFd> {
         with_svc_call(|| unsafe {
             libc::syscall(
                 libc::SYS_reboot,
-                ksu_uapi::KSU_INSTALL_MAGIC1,
-                ksu_uapi::KSU_INSTALL_MAGIC2,
+                xfg_uapi::XFG_INSTALL_MAGIC1,
+                xfg_uapi::XFG_INSTALL_MAGIC2,
                 0,
                 &mut fd,
             )
         });
         if take_sigsys_occurred() {
-            eprintln!("KernelSU driver install syscall was blocked by seccomp");
-            log::error!("KernelSU driver install syscall was blocked by seccomp");
+            eprintln!("XiaoFeng driver install syscall was blocked by seccomp");
+            log::error!("XiaoFeng driver install syscall was blocked by seccomp");
         }
         if fd >= 0 { Some(fd) } else { None }
     } else {
@@ -141,8 +141,8 @@ fn init_driver_fd() -> Option<RawFd> {
 }
 
 // ioctl wrapper using libc
-fn ksuctl<T>(request: u32, arg: *mut T) -> Result<i32> {
-    ksuctl_raw(request, arg).map_err(|e| anyhow::anyhow!("ksuctl failed: {e}"))
+fn xfgctl<T>(request: u32, arg: *mut T) -> Result<i32> {
+    xfgctl_raw(request, arg).map_err(|e| anyhow::anyhow!("xfgctl failed: {e}"))
 }
 
 /// The same call, with the error left as the kernel reported it.
@@ -151,12 +151,12 @@ fn ksuctl<T>(request: u32, arg: *mut T) -> Result<i32> {
 /// has never been set comes back as ENOENT, and a command the running kernel gates on the
 /// manager comes back as EPERM. A caller that has something to say about those needs to tell
 /// them apart from a driver that is not there at all.
-fn ksuctl_raw<T>(request: u32, arg: *mut T) -> std::io::Result<i32> {
+fn xfgctl_raw<T>(request: u32, arg: *mut T) -> std::io::Result<i32> {
     use std::io;
 
     let fd = *DRIVER_FD.get_or_init(|| init_driver_fd().unwrap_or(-1));
     if fd < 0 {
-        return Err(io::Error::other("could not retrieve kernelsu driver fd"));
+        return Err(io::Error::other("could not retrieve xiaofeng driver fd"));
     }
     let ret = unsafe { libc::ioctl(fd as libc::c_int, request as i32, arg) };
     if ret < 0 {
@@ -166,16 +166,16 @@ fn ksuctl_raw<T>(request: u32, arg: *mut T) -> std::io::Result<i32> {
 }
 
 // API implementations
-pub fn get_info() -> ksu_uapi::ksu_get_info_cmd {
+pub fn get_info() -> xfg_uapi::xfg_get_info_cmd {
     *INFO_CACHE.get_or_init(|| {
-        let mut cmd = ksu_uapi::ksu_get_info_cmd {
+        let mut cmd = xfg_uapi::xfg_get_info_cmd {
             version: 0,
             flags: 0,
             features: 0,
             uapi_version: 0,
         };
-        if ksuctl(ksu_uapi::KSU_IOCTL_GET_INFO, &raw mut cmd).is_err() {
-            let _ = ksuctl(ksu_uapi::KSU_IOCTL_GET_INFO_LEGACY, &raw mut cmd);
+        if xfgctl(xfg_uapi::XFG_IOCTL_GET_INFO, &raw mut cmd).is_err() {
+            let _ = xfgctl(xfg_uapi::XFG_IOCTL_GET_INFO_LEGACY, &raw mut cmd);
         }
         cmd
     })
@@ -186,20 +186,20 @@ pub fn get_version() -> i32 {
 }
 
 pub fn is_late_load() -> bool {
-    get_info().flags & ksu_uapi::KSU_GET_INFO_FLAG_LATE_LOAD != 0
+    get_info().flags & xfg_uapi::XFG_GET_INFO_FLAG_LATE_LOAD != 0
 }
 
 pub fn is_lkm() -> bool {
-    get_info().flags & ksu_uapi::KSU_GET_INFO_FLAG_LKM != 0
+    get_info().flags & xfg_uapi::XFG_GET_INFO_FLAG_LKM != 0
 }
 
 /// Whether the kernel runs module preinit actions on boot.
 pub fn is_preinit_supported() -> bool {
-    get_info().flags & ksu_uapi::KSU_GET_INFO_FLAG_PREINIT != 0
+    get_info().flags & xfg_uapi::XFG_GET_INFO_FLAG_PREINIT != 0
 }
 
 pub const fn uapi_version() -> u32 {
-    ksu_uapi::KERNEL_SU_UAPI_VERSION
+    xfg_uapi::KERNEL_SU_UAPI_VERSION
 }
 
 pub fn runtime_mode() -> &'static str {
@@ -217,195 +217,195 @@ pub fn ensure_uapi_version_matched() -> anyhow::Result<()> {
     let userspace_uapi = uapi_version();
     if kernel_uapi != userspace_uapi {
         bail!(
-            "UAPI version mismatch: kernel={kernel_uapi}, ksud={userspace_uapi}. Please update KernelSU!"
+            "UAPI version mismatch: kernel={kernel_uapi}, xfgd={userspace_uapi}. Please update XiaoFeng!"
         );
     }
     Ok(())
 }
 
 pub fn grant_root() -> Result<()> {
-    ksuctl(ksu_uapi::KSU_IOCTL_GRANT_ROOT, std::ptr::null_mut::<u8>())?;
+    xfgctl(xfg_uapi::XFG_IOCTL_GRANT_ROOT, std::ptr::null_mut::<u8>())?;
     Ok(())
 }
 
 fn report_event(event: u32) {
-    let mut cmd = ksu_uapi::ksu_report_event_cmd { event };
-    let _ = ksuctl(ksu_uapi::KSU_IOCTL_REPORT_EVENT, &raw mut cmd);
+    let mut cmd = xfg_uapi::xfg_report_event_cmd { event };
+    let _ = xfgctl(xfg_uapi::XFG_IOCTL_REPORT_EVENT, &raw mut cmd);
 }
 
 pub fn report_post_fs_data() {
-    report_event(ksu_uapi::EVENT_POST_FS_DATA);
+    report_event(xfg_uapi::EVENT_POST_FS_DATA);
 }
 
 pub fn report_services() -> Result<bool> {
-    let mut cmd = ksu_uapi::ksu_report_event_cmd {
-        event: ksu_uapi::EVENT_SERVICES,
+    let mut cmd = xfg_uapi::xfg_report_event_cmd {
+        event: xfg_uapi::EVENT_SERVICES,
     };
-    Ok(ksuctl(ksu_uapi::KSU_IOCTL_REPORT_EVENT, &raw mut cmd)? == 1)
+    Ok(xfgctl(xfg_uapi::XFG_IOCTL_REPORT_EVENT, &raw mut cmd)? == 1)
 }
 
 pub fn report_boot_complete() {
-    report_event(ksu_uapi::EVENT_BOOT_COMPLETED);
+    report_event(xfg_uapi::EVENT_BOOT_COMPLETED);
 }
 
 pub fn report_module_mounted() {
-    report_event(ksu_uapi::EVENT_MODULE_MOUNTED);
+    report_event(xfg_uapi::EVENT_MODULE_MOUNTED);
 }
 
 pub fn check_kernel_safemode() -> bool {
-    let mut cmd = ksu_uapi::ksu_check_safemode_cmd { in_safe_mode: 0 };
-    let _ = ksuctl(ksu_uapi::KSU_IOCTL_CHECK_SAFEMODE, &raw mut cmd);
+    let mut cmd = xfg_uapi::xfg_check_safemode_cmd { in_safe_mode: 0 };
+    let _ = xfgctl(xfg_uapi::XFG_IOCTL_CHECK_SAFEMODE, &raw mut cmd);
     cmd.in_safe_mode != 0
 }
 
 pub fn set_sepolicy(payload: *const u8, payload_len: u64) -> Result<i32> {
-    let mut ioctl_cmd = crate::ksu_uapi::ksu_set_sepolicy_cmd {
+    let mut ioctl_cmd = crate::xfg_uapi::xfg_set_sepolicy_cmd {
         data_len: payload_len,
         data: payload as u64,
     };
 
-    ksuctl(ksu_uapi::KSU_IOCTL_SET_SEPOLICY, &raw mut ioctl_cmd)
+    xfgctl(xfg_uapi::XFG_IOCTL_SET_SEPOLICY, &raw mut ioctl_cmd)
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FeatureState {
     pub value: u64,
     pub supported: bool,
-    /// Forced by boot config (ksu_config), the kernel refuses to change it
+    /// Forced by boot config (xfg_config), the kernel refuses to change it
     pub forced: bool,
 }
 
 /// Get feature value and support status from kernel
 pub fn get_feature(feature_id: u32) -> Result<FeatureState> {
-    let mut cmd = ksu_uapi::ksu_get_feature_cmd {
+    let mut cmd = xfg_uapi::xfg_get_feature_cmd {
         feature_id,
         value: 0,
         supported: 0,
     };
-    ksuctl(ksu_uapi::KSU_IOCTL_GET_FEATURE, &raw mut cmd)?;
+    xfgctl(xfg_uapi::XFG_IOCTL_GET_FEATURE, &raw mut cmd)?;
     let flags = u32::from(cmd.supported);
     Ok(FeatureState {
         value: cmd.value,
         // older kernels report 1 for supported, matching the flag
-        supported: flags & ksu_uapi::KSU_FEATURE_FLAG_SUPPORTED != 0,
-        forced: flags & ksu_uapi::KSU_FEATURE_FLAG_FORCED != 0,
+        supported: flags & xfg_uapi::XFG_FEATURE_FLAG_SUPPORTED != 0,
+        forced: flags & xfg_uapi::XFG_FEATURE_FLAG_FORCED != 0,
     })
 }
 
 /// Set feature value in kernel
 pub fn set_feature(feature_id: u32, value: u64) -> Result<()> {
-    let mut cmd = ksu_uapi::ksu_set_feature_cmd { feature_id, value };
-    ksuctl(ksu_uapi::KSU_IOCTL_SET_FEATURE, &raw mut cmd)?;
+    let mut cmd = xfg_uapi::xfg_set_feature_cmd { feature_id, value };
+    xfgctl(xfg_uapi::XFG_IOCTL_SET_FEATURE, &raw mut cmd)?;
     Ok(())
 }
 
 pub fn get_wrapped_fd(fd: RawFd) -> Result<RawFd> {
-    let mut cmd = ksu_uapi::ksu_get_wrapper_fd_cmd {
+    let mut cmd = xfg_uapi::xfg_get_wrapper_fd_cmd {
         fd: fd as u32,
         flags: 0,
     };
-    let result = ksuctl(ksu_uapi::KSU_IOCTL_GET_WRAPPER_FD, &raw mut cmd)?;
+    let result = xfgctl(xfg_uapi::XFG_IOCTL_GET_WRAPPER_FD, &raw mut cmd)?;
     Ok(result)
 }
 
 pub fn get_sulog_fd() -> Result<RawFd> {
-    let mut cmd = ksu_uapi::ksu_get_sulog_fd_cmd { flags: 0 };
-    let result = ksuctl(ksu_uapi::KSU_IOCTL_GET_SULOG_FD, &raw mut cmd)?;
+    let mut cmd = xfg_uapi::xfg_get_sulog_fd_cmd { flags: 0 };
+    let result = xfgctl(xfg_uapi::XFG_IOCTL_GET_SULOG_FD, &raw mut cmd)?;
     Ok(result)
 }
 
 /// Get mark status for a process (pid=0 returns total marked count)
 pub fn mark_get(pid: i32) -> Result<u32> {
-    let mut cmd = ksu_uapi::ksu_manage_mark_cmd {
-        operation: ksu_uapi::KSU_MARK_GET,
+    let mut cmd = xfg_uapi::xfg_manage_mark_cmd {
+        operation: xfg_uapi::XFG_MARK_GET,
         pid,
         result: 0,
     };
-    ksuctl(ksu_uapi::KSU_IOCTL_MANAGE_MARK, &raw mut cmd)?;
+    xfgctl(xfg_uapi::XFG_IOCTL_MANAGE_MARK, &raw mut cmd)?;
     Ok(cmd.result)
 }
 
 /// Mark a process (pid=0 marks all processes)
 pub fn mark_set(pid: i32) -> Result<()> {
-    let mut cmd = ksu_uapi::ksu_manage_mark_cmd {
-        operation: ksu_uapi::KSU_MARK_MARK,
+    let mut cmd = xfg_uapi::xfg_manage_mark_cmd {
+        operation: xfg_uapi::XFG_MARK_MARK,
         pid,
         result: 0,
     };
-    ksuctl(ksu_uapi::KSU_IOCTL_MANAGE_MARK, &raw mut cmd)?;
+    xfgctl(xfg_uapi::XFG_IOCTL_MANAGE_MARK, &raw mut cmd)?;
     Ok(())
 }
 
 /// Unmark a process (pid=0 unmarks all processes)
 pub fn mark_unset(pid: i32) -> Result<()> {
-    let mut cmd = ksu_uapi::ksu_manage_mark_cmd {
-        operation: ksu_uapi::KSU_MARK_UNMARK,
+    let mut cmd = xfg_uapi::xfg_manage_mark_cmd {
+        operation: xfg_uapi::XFG_MARK_UNMARK,
         pid,
         result: 0,
     };
-    ksuctl(ksu_uapi::KSU_IOCTL_MANAGE_MARK, &raw mut cmd)?;
+    xfgctl(xfg_uapi::XFG_IOCTL_MANAGE_MARK, &raw mut cmd)?;
     Ok(())
 }
 
 /// Refresh mark for all running processes
 pub fn mark_refresh() -> Result<()> {
-    let mut cmd = ksu_uapi::ksu_manage_mark_cmd {
-        operation: ksu_uapi::KSU_MARK_REFRESH,
+    let mut cmd = xfg_uapi::xfg_manage_mark_cmd {
+        operation: xfg_uapi::XFG_MARK_REFRESH,
         pid: 0,
         result: 0,
     };
-    ksuctl(ksu_uapi::KSU_IOCTL_MANAGE_MARK, &raw mut cmd)?;
+    xfgctl(xfg_uapi::XFG_IOCTL_MANAGE_MARK, &raw mut cmd)?;
     Ok(())
 }
 
 pub fn nuke_ext4_sysfs(mnt: &str) -> anyhow::Result<()> {
     let c_mnt = std::ffi::CString::new(mnt)?;
-    let mut ioctl_cmd = ksu_uapi::ksu_nuke_ext4_sysfs_cmd {
+    let mut ioctl_cmd = xfg_uapi::xfg_nuke_ext4_sysfs_cmd {
         arg: c_mnt.as_ptr() as u64,
     };
-    ksuctl(ksu_uapi::KSU_IOCTL_NUKE_EXT4_SYSFS, &raw mut ioctl_cmd)?;
+    xfgctl(xfg_uapi::XFG_IOCTL_NUKE_EXT4_SYSFS, &raw mut ioctl_cmd)?;
     Ok(())
 }
 
 /// Wipe all entries from umount list
 pub fn umount_list_wipe() -> Result<()> {
-    let mut cmd = ksu_uapi::ksu_add_try_umount_cmd {
+    let mut cmd = xfg_uapi::xfg_add_try_umount_cmd {
         arg: 0,
         flags: 0,
-        mode: ksu_uapi::KSU_UMOUNT_WIPE,
+        mode: xfg_uapi::XFG_UMOUNT_WIPE,
     };
-    ksuctl(ksu_uapi::KSU_IOCTL_ADD_TRY_UMOUNT, &raw mut cmd)?;
+    xfgctl(xfg_uapi::XFG_IOCTL_ADD_TRY_UMOUNT, &raw mut cmd)?;
     Ok(())
 }
 
 /// Add mount point to umount list
 pub fn umount_list_add(path: &str, flags: u32) -> anyhow::Result<()> {
     let c_path = std::ffi::CString::new(path)?;
-    let mut cmd = ksu_uapi::ksu_add_try_umount_cmd {
+    let mut cmd = xfg_uapi::xfg_add_try_umount_cmd {
         arg: c_path.as_ptr() as u64,
         flags,
-        mode: ksu_uapi::KSU_UMOUNT_ADD,
+        mode: xfg_uapi::XFG_UMOUNT_ADD,
     };
-    ksuctl(ksu_uapi::KSU_IOCTL_ADD_TRY_UMOUNT, &raw mut cmd)?;
+    xfgctl(xfg_uapi::XFG_IOCTL_ADD_TRY_UMOUNT, &raw mut cmd)?;
     Ok(())
 }
 
 /// Delete mount point from umount list
 pub fn umount_list_del(path: &str) -> anyhow::Result<()> {
     let c_path = std::ffi::CString::new(path)?;
-    let mut cmd = ksu_uapi::ksu_add_try_umount_cmd {
+    let mut cmd = xfg_uapi::xfg_add_try_umount_cmd {
         arg: c_path.as_ptr() as u64,
         flags: 0,
-        mode: ksu_uapi::KSU_UMOUNT_DEL,
+        mode: xfg_uapi::XFG_UMOUNT_DEL,
     };
-    ksuctl(ksu_uapi::KSU_IOCTL_ADD_TRY_UMOUNT, &raw mut cmd)?;
+    xfgctl(xfg_uapi::XFG_IOCTL_ADD_TRY_UMOUNT, &raw mut cmd)?;
     Ok(())
 }
 
 /// Set current process's process group to init_group (pgid = 0)
 pub fn set_init_pgrp() -> Result<()> {
-    ksuctl(
-        ksu_uapi::KSU_IOCTL_SET_INIT_PGRP,
+    xfgctl(
+        xfg_uapi::XFG_IOCTL_SET_INIT_PGRP,
         std::ptr::null_mut::<u8>(),
     )?;
     Ok(())
@@ -417,28 +417,28 @@ pub fn set_init_pgrp() -> Result<()> {
 /// symbol.
 pub fn lookup_symbols(names: &[&str]) -> Result<Vec<Option<u64>>> {
     let mut result = Vec::with_capacity(names.len());
-    for chunk in names.chunks(ksu_uapi::KSU_LOOKUP_SYMBOLS_MAX as usize) {
+    for chunk in names.chunks(xfg_uapi::XFG_LOOKUP_SYMBOLS_MAX as usize) {
         let c_names = chunk
             .iter()
             .map(|name| std::ffi::CString::new(*name))
             .collect::<Result<Vec<_>, _>>()?;
         let ptrs: Vec<u64> = c_names.iter().map(|name| name.as_ptr() as u64).collect();
         let mut addrs = vec![0u64; chunk.len()];
-        let mut cmd = ksu_uapi::ksu_lookup_symbols_cmd {
+        let mut cmd = xfg_uapi::xfg_lookup_symbols_cmd {
             names: ptrs.as_ptr() as u64,
             addrs: addrs.as_mut_ptr() as u64,
             count: chunk.len() as u32,
             flags: 0,
         };
-        ksuctl(ksu_uapi::KSU_IOCTL_LOOKUP_SYMBOLS, &raw mut cmd)?;
+        xfgctl(xfg_uapi::XFG_IOCTL_LOOKUP_SYMBOLS, &raw mut cmd)?;
         result.extend(addrs.into_iter().map(|addr| (addr != 0).then_some(addr)));
     }
     Ok(result)
 }
 
-pub fn set_ksu_no_new_privs() -> anyhow::Result<()> {
-    let result = ksuctl(
-        ksu_uapi::KSU_IOCTL_DISABLE_ESCAPE_TO_ROOT,
+pub fn set_xfg_no_new_privs() -> anyhow::Result<()> {
+    let result = xfgctl(
+        xfg_uapi::XFG_IOCTL_DISABLE_ESCAPE_TO_ROOT,
         std::ptr::null_mut::<u8>(),
     )?;
     if result != 0 {
@@ -463,11 +463,11 @@ fn describe_profile_error(e: &std::io::Error) -> anyhow::Error {
 /// The profile stored for `uid`, or `None` when the kernel has none and its defaults apply.
 ///
 /// The kernel looks the profile up by uid alone; the key travels with it for its own bookkeeping.
-pub fn get_app_profile(key: &str, uid: i32) -> Result<Option<ksu_uapi::app_profile>> {
-    let mut cmd = ksu_uapi::ksu_get_app_profile_cmd {
+pub fn get_app_profile(key: &str, uid: i32) -> Result<Option<xfg_uapi::app_profile>> {
+    let mut cmd = xfg_uapi::xfg_get_app_profile_cmd {
         profile: new_profile(key, uid)?,
     };
-    let found = (match ksuctl_raw(ksu_uapi::KSU_IOCTL_GET_APP_PROFILE, &raw mut cmd) {
+    let found = (match xfgctl_raw(xfg_uapi::XFG_IOCTL_GET_APP_PROFILE, &raw mut cmd) {
         Ok(_) => Ok(true),
         Err(e) if e.raw_os_error() == Some(libc::ENOENT) => Ok(false),
         Err(e) => Err(e),
@@ -476,17 +476,17 @@ pub fn get_app_profile(key: &str, uid: i32) -> Result<Option<ksu_uapi::app_profi
     Ok(found.then_some(cmd.profile))
 }
 
-pub fn set_app_profile(profile: &ksu_uapi::app_profile) -> Result<()> {
-    let mut cmd = ksu_uapi::ksu_set_app_profile_cmd { profile: *profile };
-    ksuctl_raw(ksu_uapi::KSU_IOCTL_SET_APP_PROFILE, &raw mut cmd)
+pub fn set_app_profile(profile: &xfg_uapi::app_profile) -> Result<()> {
+    let mut cmd = xfg_uapi::xfg_set_app_profile_cmd { profile: *profile };
+    xfgctl_raw(xfg_uapi::XFG_IOCTL_SET_APP_PROFILE, &raw mut cmd)
         .map_err(|e| describe_profile_error(&e))?;
     Ok(())
 }
 
 /// An empty profile addressed to one app, which is what both commands take as input.
-pub fn new_profile(key: &str, uid: i32) -> Result<ksu_uapi::app_profile> {
-    let mut profile: ksu_uapi::app_profile = unsafe { std::mem::zeroed() };
-    profile.version = ksu_uapi::KSU_APP_PROFILE_VER;
+pub fn new_profile(key: &str, uid: i32) -> Result<xfg_uapi::app_profile> {
+    let mut profile: xfg_uapi::app_profile = unsafe { std::mem::zeroed() };
+    profile.version = xfg_uapi::XFG_APP_PROFILE_VER;
     profile.curr_uid = uid;
     write_c_str(&mut profile.key, key).context("package name")?;
     Ok(profile)
@@ -512,7 +512,7 @@ pub fn write_c_str(dst: &mut [std::os::raw::c_char], src: &str) -> Result<()> {
 
 /// Read a string back out of a fixed C array.
 pub fn read_c_str(src: &[std::os::raw::c_char]) -> String {
-    // c_char is unsigned on arm and signed on x86, and ksud is built for both.
+    // c_char is unsigned on arm and signed on x86, and xfgd is built for both.
     #[allow(clippy::unnecessary_cast)]
     let bytes: Vec<u8> = src
         .iter()

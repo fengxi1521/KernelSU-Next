@@ -19,7 +19,7 @@ import android.graphics.drawable.Drawable
 import androidx.lifecycle.ViewModel
 import com.xiao.feng.IXfInterface
 import com.xiao.feng.Natives
-import com.xiao.feng.ksuApp
+import com.xiao.feng.xfgApp
 import com.xiao.feng.ui.XfService
 import com.xiao.feng.ui.util.HanziToPinyin
 import com.topjohnwu.superuser.ipc.RootService
@@ -37,7 +37,7 @@ import kotlin.coroutines.suspendCoroutine
 
 class SuperUserViewModel : ViewModel() {
 
-    private var ksuConnection: ServiceConnection? = null
+    private var xfgConnection: ServiceConnection? = null
 
     companion object {
         private const val TAG = "SuperUserViewModel"
@@ -93,7 +93,7 @@ class SuperUserViewModel : ViewModel() {
             }
     }
 
-    private val prefs = ksuApp.getSharedPreferences("settings", Context.MODE_PRIVATE)!!
+    private val prefs = xfgApp.getSharedPreferences("settings", Context.MODE_PRIVATE)!!
 
     var search by mutableStateOf("")
     var showSystemApps by mutableStateOf(prefs.getBoolean("show_system_apps", false))
@@ -159,9 +159,9 @@ class SuperUserViewModel : ViewModel() {
             }
         }
 
-        ksuConnection = connection
+        xfgConnection = connection
 
-        val intent = Intent(ksuApp, XfService::class.java)
+        val intent = Intent(xfgApp, XfService::class.java)
 
         val task = RootService.bindOrTask(
             intent,
@@ -172,9 +172,9 @@ class SuperUserViewModel : ViewModel() {
     }
 
     private fun stopXfService() {
-        val intent = Intent(ksuApp, XfService::class.java)
-        ksuConnection?.let { RootService.unbind(it) }
-        ksuConnection = null
+        val intent = Intent(xfgApp, XfService::class.java)
+        xfgConnection?.let { RootService.unbind(it) }
+        xfgConnection = null
         RootService.stop(intent)
     }
 
@@ -196,7 +196,7 @@ class SuperUserViewModel : ViewModel() {
                 }
 
                 withContext(Dispatchers.IO) {
-                    val pm = ksuApp.packageManager
+                    val pm = xfgApp.packageManager
                     val allPackages = IXfInterface.Stub.asInterface(binder).getPackages(0)
 
 

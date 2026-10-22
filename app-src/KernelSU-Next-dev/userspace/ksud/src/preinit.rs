@@ -251,32 +251,32 @@ fn remove_entry(path: &Path) -> bool {
     removed.is_ok()
 }
 
-fn remove_all(ksu_dir: &Path) {
-    let preinit_dir = ksu_dir.join(defs::PREINIT_SUBDIR);
+fn remove_all(xfg_dir: &Path) {
+    let preinit_dir = xfg_dir.join(defs::PREINIT_SUBDIR);
     if preinit_dir.exists()
         && let Err(e) = fs::remove_dir_all(&preinit_dir)
     {
         warn!("Failed to remove {}: {e}", preinit_dir.display());
     }
-    fs::remove_file(ksu_dir.join(defs::PREINIT_BOOTCOUNT_FILE)).ok();
+    fs::remove_file(xfg_dir.join(defs::PREINIT_BOOTCOUNT_FILE)).ok();
 }
 
-/// Make `<ksu_dir>/preinit/` mirror the `preinit/` dirs of `modules` (id -> module dir, enabled
+/// Make `<xfg_dir>/preinit/` mirror the `preinit/` dirs of `modules` (id -> module dir, enabled
 /// modules for the next boot only). Unchanged modules are left alone to spare /metadata writes.
 pub fn sync(
-    ksu_dir: &Path,
-    stale_ksu_dirs: &[&Path],
+    xfg_dir: &Path,
+    stale_xfg_dirs: &[&Path],
     modules: &BTreeMap<String, PathBuf>,
     con: &str,
     supported: bool,
 ) -> Result<()> {
-    for stale in stale_ksu_dirs {
+    for stale in stale_xfg_dirs {
         remove_all(stale);
     }
 
     // Nothing would run the copies: keep /metadata clean and say why.
     if !supported {
-        remove_all(ksu_dir);
+        remove_all(xfg_dir);
         let status: Vec<Status> = modules
             .iter()
             .filter(|(_, dir)| dir.join(defs::MODULE_PREINIT_DIR).is_dir())
@@ -314,13 +314,13 @@ pub fn sync(
     }
 
     if candidates.is_empty() {
-        remove_all(ksu_dir);
+        remove_all(xfg_dir);
         write_status(&status);
         return Ok(());
     }
 
     let mut changed = false;
-    let result = sync_candidates(ksu_dir, con, &candidates, &mut status, &mut changed);
+    let result = sync_candidates(xfg_dir, con, &candidates, &mut status, &mut changed);
     if let Err(e) = &result {
         // Whatever was not decided yet will not run as expected
         for (id, _, _) in &candidates {
@@ -336,8 +336,8 @@ pub fn sync(
 
     // New content deserves a fresh set of attempts
     if changed {
-        fs::remove_file(ksu_dir.join(defs::PREINIT_BOOTCOUNT_FILE)).ok();
-        sync_dir(ksu_dir);
+        fs::remove_file(xfg_dir.join(defs::PREINIT_BOOTCOUNT_FILE)).ok();
+        sync_dir(xfg_dir);
     }
 
     status.sort_by(|a, b| a.id.cmp(&b.id));
@@ -346,16 +346,16 @@ pub fn sync(
 }
 
 fn sync_candidates(
-    ksu_dir: &Path,
+    xfg_dir: &Path,
     con: &str,
     candidates: &[(String, PathBuf, Vec<Entry>)],
     status: &mut Vec<Status>,
     changed: &mut bool,
 ) -> Result<()> {
-    let preinit_dir = ksu_dir.join(defs::PREINIT_SUBDIR);
+    let preinit_dir = xfg_dir.join(defs::PREINIT_SUBDIR);
 
-    // ksud runs with umask 0, tighten what was created by earlier versions
-    secure(ksu_dir, 0o755, con)?;
+    // xfgd runs with umask 0, tighten what was created by earlier versions
+    secure(xfg_dir, 0o755, con)?;
     ensure_dir_exists(&preinit_dir)?;
     secure(&preinit_dir, 0o755, con)?;
 
@@ -363,7 +363,7 @@ fn sync_candidates(
     let old_manifest = read_manifest(&manifest_path);
 
     // Pick the modules that fit, counting every existing copy as free
-    let free = available(ksu_dir)? + disk_usage(&preinit_dir);
+    let free = available(xfg_dir)? + disk_usage(&preinit_dir);
     let budget = LIMIT_TOTAL.min(free.saturating_sub(RESERVE));
     // preinit/ itself and the manifest
     let mut used = 2 * BLOCK;
@@ -400,11 +400,11 @@ fn sync_candidates(
         if !unchanged {
             // The budget counts the old copy as free, but install() writes the new one first:
             // drop the old copy when both would cut into the reserve.
-            if available(ksu_dir)? < need + RESERVE && dst.exists() {
+            if available(xfg_dir)? < need + RESERVE && dst.exists() {
                 remove_entry(&dst);
                 *changed = true;
             }
-            let avail = available(ksu_dir)?;
+            let avail = available(xfg_dir)?;
             if avail < need + RESERVE {
                 status.push(Status {
                     id: id.clone(),
@@ -466,7 +466,7 @@ fn remove_unlisted(preinit_dir: &Path, keep: &BTreeSet<&str>, changed: &mut bool
 }
 
 fn bootcount_path() -> PathBuf {
-    Path::new(crate::module::preinit_ksu_dir()).join(defs::PREINIT_BOOTCOUNT_FILE)
+    Path::new(crate::module::preinit_xfg_dir()).join(defs::PREINIT_BOOTCOUNT_FILE)
 }
 
 fn read_bootcount() -> u64 {
@@ -487,7 +487,7 @@ pub fn on_boot_completed() {
     let count = read_bootcount();
     if count > BOOTCOUNT_LIMIT {
         warn!(
-            "preinit was disabled after {BOOTCOUNT_LIMIT} failed boots, run `ksud module preinit reset` to retry"
+            "preinit was disabled after {BOOTCOUNT_LIMIT} failed boots, run `xfgd module preinit reset` to retry"
         );
         return;
     }
@@ -543,7 +543,7 @@ pub fn print_status() {
     let count = read_bootcount();
     if count > BOOTCOUNT_LIMIT {
         println!(
-            "preinit: disabled after {BOOTCOUNT_LIMIT} failed boots (reset with `ksud module preinit reset`)"
+            "preinit: disabled after {BOOTCOUNT_LIMIT} failed boots (reset with `xfgd module preinit reset`)"
         );
     } else {
         println!("preinit: bootcount {count}/{BOOTCOUNT_LIMIT}");

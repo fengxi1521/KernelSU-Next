@@ -5,28 +5,28 @@
  * Why this and not an inline hook
  * -------------------------------
  * sys_call_table[nr] holds a pointer to the kernel's CFI jump-table stub
- * (__arm64_sys_xxx.cfi_jt), and KernelSU reads that very array when it wants the
- * original behaviour (ksu_syscall_table[orig_nr](regs), see ksu_hook_faccessat).
+ * (__arm64_sys_xxx.cfi_jt), and XiaoFeng reads that very array when it wants the
+ * original behaviour (xfg_syscall_table[orig_nr](regs), see xfg_hook_faccessat).
  * Rewriting the instructions of such a wrapper therefore interferes with every
  * other caller of it - measured on this device as an unrecoverable
  *
  *     Internal error: Oops - FPAC: 0000000072000000
  *     pc : __arm64_sys_faccessat+0x2c4/0x848
- *     lr : ksu_hook_faccessat+0x44/0x58 [kernelsu]
+ *     lr : xfg_hook_faccessat+0x44/0x58 [xiaofeng]
  *
  * Replacing the table entry touches data only, so the whole chain stays as the
  * kernel built it:
  *
  *     invoke_syscall()          -> sys_call_table[nr]        (ours)
- *     sys_enter + dispatcher    -> ksu_syscall_table[nr]     (the same array)
- *     ksu_hook_faccessat()      -> our wrapper
+ *     sys_enter + dispatcher    -> xfg_syscall_table[nr]     (the same array)
+ *     xfg_hook_faccessat()      -> our wrapper
  *     our wrapper (not hidden)  -> saved entry -> .cfi_jt stub -> real wrapper
  *
  * Nothing on that path has a rewritten instruction, so BTI, PAC, the CFI jump
  * table and LTO all remain untouched.
  *
  * The write itself reuses the fixmap primitive that the inline hook layer
- * already brought over from KernelSU/SukiSU (phys_from_virt + FIX_TEXT_POKE0 +
+ * already brought over from XiaoFeng/SukiSU (phys_from_virt + FIX_TEXT_POKE0 +
  * copy_to_kernel_nofault + stop_machine + d-cache flush): the table is data in
  * .rodata, so only the d-cache needs maintenance - never the i-cache.
  */
@@ -78,16 +78,16 @@ static int fp_patch_entry(susfs_syscall_fn_t *table, int nr, const char *name,
 {
 	int err;
 
-	err = ksu_patch_text(&table[nr], &wrapper, sizeof(wrapper),
-			     KSU_PATCH_TEXT_FLUSH_DCACHE);
+	err = xfg_patch_text(&table[nr], &wrapper, sizeof(wrapper),
+			     XFG_PATCH_TEXT_FLUSH_DCACHE);
 	if (err) {
 		pr_warn("susfs_fp: %s: write failed %d\n", name, err);
 		return err;
 	}
 	if (READ_ONCE(table[nr]) != wrapper) {
 		/* A half-written pointer is worse than none: put the old one back. */
-		ksu_patch_text(&table[nr], &old, sizeof(old),
-			       KSU_PATCH_TEXT_FLUSH_DCACHE);
+		xfg_patch_text(&table[nr], &old, sizeof(old),
+			       XFG_PATCH_TEXT_FLUSH_DCACHE);
 		pr_warn("susfs_fp: %s: write did not stick, rolled back\n", name);
 		return -EIO;
 	}
@@ -103,13 +103,13 @@ int susfs_fp_init(void)
 
 	/* Both lookups, because they do not cover the same symbols: on 5.15
 	 * find_kernel_symbol_exact() is kallsyms_lookup_name(), while
-	 * ksu_resolve_symbol_for_functable_hook() also walks kallsyms_on_each_symbol -
-	 * which is how KernelSU resolves this exact symbol.  Data symbols such as
+	 * xfg_resolve_symbol_for_functable_hook() also walks kallsyms_on_each_symbol -
+	 * which is how XiaoFeng resolves this exact symbol.  Data symbols such as
 	 * sys_call_table are the reason to keep both. */
 	direct = (void *)find_kernel_symbol_exact("sys_call_table");
 	sys_call_table_ptr = (susfs_syscall_fn_t *)direct;
 	if (!sys_call_table_ptr) {
-		walked = ksu_resolve_symbol_for_functable_hook("sys_call_table");
+		walked = xfg_resolve_symbol_for_functable_hook("sys_call_table");
 		sys_call_table_ptr = (susfs_syscall_fn_t *)walked;
 	}
 
@@ -120,7 +120,7 @@ int susfs_fp_init(void)
 			"(control: jiffies direct=%px, openat walk=%px)\n",
 			direct, walked,
 			(void *)find_kernel_symbol_exact("jiffies"),
-			ksu_resolve_symbol_for_functable_hook("__arm64_sys_openat"));
+			xfg_resolve_symbol_for_functable_hook("__arm64_sys_openat"));
 		return -ENOENT;
 	}
 
@@ -133,7 +133,7 @@ int susfs_fp_init(void)
 		(susfs_syscall_fn_t *)find_kernel_symbol_exact("compat_sys_call_table");
 	if (!compat_sys_call_table_ptr)
 		compat_sys_call_table_ptr =
-			(susfs_syscall_fn_t *)ksu_resolve_symbol_for_functable_hook("compat_sys_call_table");
+			(susfs_syscall_fn_t *)xfg_resolve_symbol_for_functable_hook("compat_sys_call_table");
 	pr_info("susfs_fp: compat_sys_call_table at %px (%s)\n",
 		compat_sys_call_table_ptr, compat_sys_call_table_ptr ? "ok" : "absent");
 	return 0;
@@ -162,7 +162,7 @@ void susfs_fp_dump_entry(int nr, const char *sym)
 	plain = find_kernel_symbol_exact(sym);
 	snprintf(cfi_name, sizeof(cfi_name), "%s.cfi_jt", sym);
 	cfi = find_kernel_symbol_exact(cfi_name);
-	resolved = (unsigned long)ksu_resolve_symbol_for_functable_hook(sym);
+	resolved = (unsigned long)xfg_resolve_symbol_for_functable_hook(sym);
 
 	pr_info("susfs_fp: nr %d table=%px plain=%px cfi_jt=%px resolved=%px -> %s\n",
 		nr, (void *)READ_ONCE(sys_call_table_ptr[nr]),
@@ -278,8 +278,8 @@ int susfs_fp_install(struct susfs_fp_hook *h)
 				if (err) {
 					/* Keep the two tables consistent rather than half-armed. */
 					if (native_done)
-						ksu_patch_text(&sys_call_table_ptr[h->nr], &h->orig,
-							       sizeof(h->orig), KSU_PATCH_TEXT_FLUSH_DCACHE);
+						xfg_patch_text(&sys_call_table_ptr[h->nr], &h->orig,
+							       sizeof(h->orig), XFG_PATCH_TEXT_FLUSH_DCACHE);
 					return err;
 				}
 				compat_done = true;
@@ -321,8 +321,8 @@ void susfs_fp_remove(struct susfs_fp_hook *h)
 
 	if (cnr >= 0 && compat_sys_call_table_ptr && h->orig_compat &&
 	    READ_ONCE(compat_sys_call_table_ptr[cnr]) == h->wrapper) {
-		err = ksu_patch_text(&compat_sys_call_table_ptr[cnr], &h->orig_compat,
-				     sizeof(h->orig_compat), KSU_PATCH_TEXT_FLUSH_DCACHE);
+		err = xfg_patch_text(&compat_sys_call_table_ptr[cnr], &h->orig_compat,
+				     sizeof(h->orig_compat), XFG_PATCH_TEXT_FLUSH_DCACHE);
 		if (err)
 			pr_warn("susfs_fp: %s: compat entry %d restore failed %d\n",
 				h->name, cnr, err);
@@ -332,8 +332,8 @@ void susfs_fp_remove(struct susfs_fp_hook *h)
 
 	/* nr < 0 means there is no native entry: only the compat one above was ours. */
 	if (h->nr >= 0) {
-		err = ksu_patch_text(&sys_call_table_ptr[h->nr], &h->orig,
-				     sizeof(h->orig), KSU_PATCH_TEXT_FLUSH_DCACHE);
+		err = xfg_patch_text(&sys_call_table_ptr[h->nr], &h->orig,
+				     sizeof(h->orig), XFG_PATCH_TEXT_FLUSH_DCACHE);
 		if (err)
 			pr_warn("susfs_fp: nr %d restore failed %d\n", h->nr, err);
 		else

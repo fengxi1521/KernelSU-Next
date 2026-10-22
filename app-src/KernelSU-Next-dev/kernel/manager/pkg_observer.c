@@ -23,7 +23,7 @@ struct watch_dir {
 
 static struct fsnotify_group *g;
 
-static void ksu_track_throne_tw_func(struct callback_head *cb)
+static void xfg_track_throne_tw_func(struct callback_head *cb)
 {
     kfree(cb);
     // Runs after exit_fs() if the task is exiting; path lookups would oops
@@ -37,14 +37,14 @@ static void ksu_track_throne_tw_func(struct callback_head *cb)
 // or kworker: the scan must finish before the rename returns, or the manager
 // can be opened before it is crowned, and it must run in the renamer's
 // (Android's) namespaces, which differ from init_task's on WSA/Waydroid.
-static void ksu_defer_track_throne(void)
+static void xfg_defer_track_throne(void)
 {
     struct callback_head *cb;
 
     if (!(current->flags & PF_KTHREAD)) {
         cb = kzalloc(sizeof(*cb), GFP_KERNEL);
         if (cb) {
-            cb->func = ksu_track_throne_tw_func;
+            cb->func = xfg_track_throne_tw_func;
             if (!task_work_add(current, cb, TWA_RESUME))
                 return;
             kfree(cb);
@@ -54,7 +54,7 @@ static void ksu_defer_track_throne(void)
     track_throne(false);
 }
 
-static int ksu_handle_inode_event(struct fsnotify_mark *mark, u32 mask,
+static int xfg_handle_inode_event(struct fsnotify_mark *mark, u32 mask,
                                   struct inode *inode, struct inode *dir,
                                   const struct qstr *file_name, u32 cookie)
 {
@@ -64,7 +64,7 @@ static int ksu_handle_inode_event(struct fsnotify_mark *mark, u32 mask,
         return 0;
     if (file_name->len == 13 && !memcmp(file_name->name, "packages.list", 13)) {
         pr_info("packages.list detected: %d\n", mask);
-        ksu_defer_track_throne();
+        xfg_defer_track_throne();
     }
     return 0;
 }
@@ -74,14 +74,14 @@ static int ksu_handle_inode_event(struct fsnotify_mark *mark, u32 mask,
  * fsnotify_final_mark_destroy() (no NULL check), and the marks here come from
  * kzalloc() - not from fsnotify_mark_cache - so this is what releases them.
  */
-static void ksu_free_mark(struct fsnotify_mark *mark)
+static void xfg_free_mark(struct fsnotify_mark *mark)
 {
 	kfree(mark);
 }
 
-static const struct fsnotify_ops ksu_ops = {
-	.handle_inode_event = ksu_handle_inode_event,
-	.free_mark = ksu_free_mark,
+static const struct fsnotify_ops xfg_ops = {
+	.handle_inode_event = xfg_handle_inode_event,
+	.free_mark = xfg_free_mark,
 };
 
 static int add_mark_on_inode(struct inode *inode, u32 mask,
@@ -146,14 +146,14 @@ static void unwatch_one_dir(struct watch_dir *wd)
 static struct watch_dir g_watch = { .path = "/data/system",
                                     .mask = MASK_SYSTEM };
 
-int ksu_observer_init(void)
+int xfg_observer_init(void)
 {
 	int ret = 0;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
-	g = fsnotify_alloc_group(&ksu_ops, 0);
+	g = fsnotify_alloc_group(&xfg_ops, 0);
 #else
-	g = fsnotify_alloc_group(&ksu_ops);
+	g = fsnotify_alloc_group(&xfg_ops);
 #endif
 	if (IS_ERR(g))
 		return PTR_ERR(g);
@@ -163,7 +163,7 @@ int ksu_observer_init(void)
 	return 0;
 }
 
-void __exit ksu_observer_exit(void)
+void __exit xfg_observer_exit(void)
 {
 	unwatch_one_dir(&g_watch);
 	/*

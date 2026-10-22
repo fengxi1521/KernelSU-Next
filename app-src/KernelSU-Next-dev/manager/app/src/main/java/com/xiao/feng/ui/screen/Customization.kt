@@ -51,7 +51,7 @@ import com.xiao.feng.ui.util.LocalSnackbarHost
 import com.xiao.feng.ui.util.LocaleHelper
 
 /**
- * @author rifsxd
+ * @author XiaoFeng
  * @date 2025/6/1.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,7 +72,7 @@ fun CustomizationScreen(navigator: DestinationsNavigator) {
     val snackBarHost = LocalSnackbarHost.current
 
     val isManager = Natives.isManager
-    val ksuVersion = if (isManager) Natives.version else null
+    val xfgVersion = if (isManager) Natives.version else null
 
     val scrollState = LocalScrollState.current
     val navBarEnabled = LocalNavBarEnabled.current
@@ -150,7 +150,7 @@ fun CustomizationScreen(navigator: DestinationsNavigator) {
                     prefs.getBoolean("use_banner", true)
                 )
             }
-            if (ksuVersion != null) {
+            if (xfgVersion != null) {
                 SwitchItem(
                     icon = Icons.Filled.ViewCarousel,
                     title = stringResource(id = R.string.settings_banner),

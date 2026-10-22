@@ -23,7 +23,7 @@ use crate::{assets, boot_patch};
 const ARM64_IMAGE_MAGIC_OFFSET: usize = 0x38;
 const ARM64_IMAGE_MAGIC: &[u8; 4] = b"ARM\x64";
 const ARM64_IMAGE_SIZE_OFFSET: usize = 0x10;
-const CAPSULE_MAGIC: &[u8; 8] = b"KSULKM1\0";
+const CAPSULE_MAGIC: &[u8; 8] = b"XFGLKM1\0";
 const CAPSULE_VERSION: u32 = 2;
 const CAPSULE_ALIGNMENT: usize = 4096;
 const CAPSULE_HEADER_SIZE: usize = 112;
@@ -74,7 +74,7 @@ pub struct BootPatchV2Args {
     #[arg(short, long)]
     pub boot: PathBuf,
 
-    /// Exact kernelsu.ko; auto-select the embedded KMI build when omitted
+    /// Exact kernel module; auto-select the embedded KMI build when omitted
     #[arg(short, long)]
     pub module: Option<PathBuf>,
 
@@ -87,7 +87,7 @@ pub struct BootPatchV2Args {
     pub force: bool,
 
     #[command(flatten)]
-    pub config: boot_patch::KsuConfigArgs,
+    pub config: boot_patch::XfgConfigArgs,
 }
 
 #[derive(Clone, Debug)]
@@ -1960,10 +1960,10 @@ impl<'a> BootstrapObject<'a> {
             );
             Ok(matches.first().copied())
         };
-        let text_index = find_section(".text.ksu_bootstrap")?
-            .context("bootstrap must contain exactly one .text.ksu_bootstrap section")?;
+        let text_index = find_section(".text.xfg_bootstrap")?
+            .context("bootstrap must contain exactly one .text.xfg_bootstrap section")?;
         // Optional, the bootstrap currently keeps all its constants in literal pools
-        let rodata_index = find_section(".rodata.ksu_bootstrap")?;
+        let rodata_index = find_section(".rodata.xfg_bootstrap")?;
         let text = &sections[text_index];
         ensure!(
             text.section_type == SHT_PROGBITS
@@ -2273,14 +2273,14 @@ impl<'a> BootstrapObject<'a> {
         }
 
         Ok(LinkedBootstrap {
-            entry_address: self.named_symbol_value("ksu_bootstrap", code_address, definitions)?,
+            entry_address: self.named_symbol_value("xfg_bootstrap", code_address, definitions)?,
             reserve_wrapper_address: self.named_symbol_value(
-                "ksu_memblock_reserve_wrapper",
+                "xfg_memblock_reserve_wrapper",
                 code_address,
                 definitions,
             )?,
             strndup_adapter_address: self.named_symbol_value(
-                "ksu_strndup_user_adapter",
+                "xfg_strndup_user_adapter",
                 code_address,
                 definitions,
             )?,
@@ -2426,44 +2426,44 @@ fn inject_image(
 
     let mut definitions = BTreeMap::<&str, u64>::new();
     definitions.insert(
-        "ksu_ext_memblock_reserve",
+        "xfg_ext_memblock_reserve",
         sites.memblock_reserve_call.target,
     );
-    definitions.insert("ksu_ext_memstart_addr", required.memstart_addr.address);
-    definitions.insert("ksu_ext_kimage_voffset", required.kimage_voffset.address);
-    definitions.insert("ksu_ext_async_synchronize_full", sites.async_call.target);
-    definitions.insert("ksu_ext_vmalloc", required.vmalloc.address);
-    definitions.insert("ksu_ext_memcpy", required.memcpy.address);
-    definitions.insert("ksu_ext_load_module", required.load_module.address);
-    definitions.insert("ksu_ext_kstrdup", required.kstrdup.address);
-    definitions.insert("ksu_ext_strndup_user", sites.strndup_call.target);
-    definitions.insert("ksu_image_base", image_base);
-    definitions.insert("ksu_capsule_magic", u64::from_le_bytes(*CAPSULE_MAGIC));
-    definitions.insert("ksu_capsule_version", u64::from(CAPSULE_VERSION));
-    definitions.insert("ksu_capsule_header_size", CAPSULE_HEADER_SIZE as u64);
-    definitions.insert("ksu_capsule_image_offset", capsule.file_offset as u64);
-    definitions.insert("ksu_capsule_size", capsule.data.len() as u64);
+    definitions.insert("xfg_ext_memstart_addr", required.memstart_addr.address);
+    definitions.insert("xfg_ext_kimage_voffset", required.kimage_voffset.address);
+    definitions.insert("xfg_ext_async_synchronize_full", sites.async_call.target);
+    definitions.insert("xfg_ext_vmalloc", required.vmalloc.address);
+    definitions.insert("xfg_ext_memcpy", required.memcpy.address);
+    definitions.insert("xfg_ext_load_module", required.load_module.address);
+    definitions.insert("xfg_ext_kstrdup", required.kstrdup.address);
+    definitions.insert("xfg_ext_strndup_user", sites.strndup_call.target);
+    definitions.insert("xfg_image_base", image_base);
+    definitions.insert("xfg_capsule_magic", u64::from_le_bytes(*CAPSULE_MAGIC));
+    definitions.insert("xfg_capsule_version", u64::from(CAPSULE_VERSION));
+    definitions.insert("xfg_capsule_header_size", CAPSULE_HEADER_SIZE as u64);
+    definitions.insert("xfg_capsule_image_offset", capsule.file_offset as u64);
+    definitions.insert("xfg_capsule_size", capsule.data.len() as u64);
     definitions.insert(
-        "ksu_module_capsule_offset",
+        "xfg_module_capsule_offset",
         capsule.module_offset.saturating_sub(capsule.file_offset) as u64,
     );
     definitions.insert(
-        "ksu_fixup_capsule_offset",
+        "xfg_fixup_capsule_offset",
         capsule.fixup_offset.saturating_sub(capsule.file_offset) as u64,
     );
     definitions.insert(
-        "ksu_args_capsule_offset",
+        "xfg_args_capsule_offset",
         capsule.args_offset.saturating_sub(capsule.file_offset) as u64,
     );
-    definitions.insert("ksu_args_size", capsule.args_size as u64);
-    definitions.insert("ksu_reserve_extension", reserve_extension as u64);
-    definitions.insert("ksu_page_offset", sites.page_offset);
-    definitions.insert("ksu_module_size", module.len() as u64);
-    definitions.insert("ksu_fixup_count", fixups.len() as u64);
-    definitions.insert("ksu_load_info_size", gki_abi.load_info_storage_size);
-    definitions.insert("ksu_load_info_hdr_offset", gki_abi.load_info_hdr_offset);
-    definitions.insert("ksu_load_info_len_offset", gki_abi.load_info_len_offset);
-    definitions.insert("ksu_gfp_kernel", gki_abi.gfp_kernel);
+    definitions.insert("xfg_args_size", capsule.args_size as u64);
+    definitions.insert("xfg_reserve_extension", reserve_extension as u64);
+    definitions.insert("xfg_page_offset", sites.page_offset);
+    definitions.insert("xfg_module_size", module.len() as u64);
+    definitions.insert("xfg_fixup_count", fixups.len() as u64);
+    definitions.insert("xfg_load_info_size", gki_abi.load_info_storage_size);
+    definitions.insert("xfg_load_info_hdr_offset", gki_abi.load_info_hdr_offset);
+    definitions.insert("xfg_load_info_len_offset", gki_abi.load_info_len_offset);
+    definitions.insert("xfg_gfp_kernel", gki_abi.gfp_kernel);
 
     let bootstrap_object = BootstrapObject::parse(BOOTSTRAP_OBJECT)
         .context("cannot parse the embedded LKM bootstrap")?;
@@ -2573,11 +2573,11 @@ fn inject_image(
 fn embedded_module_name(kmi: &str) -> String {
     #[cfg(target_os = "android")]
     {
-        format!("{kmi}_kernelsu.ko")
+        format!("{kmi}_xiaofeng.ko")
     }
     #[cfg(not(target_os = "android"))]
     {
-        format!("aarch64/{kmi}_kernelsu.ko")
+        format!("aarch64/{kmi}_xiaofeng.ko")
     }
 }
 
@@ -2638,7 +2638,7 @@ pub fn patch_boot(args: &BootPatchV2Args) -> Result<()> {
         println!("- KMI: {kmi}");
         println!("- Embedded module: {name}");
         assets::get_asset_data(&name)
-            .with_context(|| format!("no embedded KernelSU module for KMI {kmi}: {name}"))?
+            .with_context(|| format!("no embedded XiaoFeng module for KMI {kmi}: {name}"))?
             .into_owned()
     };
 
@@ -2767,7 +2767,7 @@ mod tests {
             .filter(|symbol| symbol.section_index == SHN_UNDEF && !symbol.name.is_empty())
             .enumerate()
         {
-            let value = if symbol.name.starts_with("ksu_ext_") || symbol.name == "ksu_image_base" {
+            let value = if symbol.name.starts_with("xfg_ext_") || symbol.name == "xfg_image_base" {
                 image_base + 0x10_000 + index as u64 * 0x100
             } else {
                 index as u64 + 1
@@ -3021,9 +3021,9 @@ mod tests {
     fn embedded_module_uses_release_asset_layout() {
         let name = embedded_module_name("android12-5.10");
         #[cfg(target_os = "android")]
-        assert_eq!(name, "android12-5.10_kernelsu.ko");
+        assert_eq!(name, "android12-5.10_xiaofeng.ko");
         #[cfg(not(target_os = "android"))]
-        assert_eq!(name, "aarch64/android12-5.10_kernelsu.ko");
+        assert_eq!(name, "aarch64/android12-5.10_xiaofeng.ko");
         assert!(!assets::get_asset_data(&name).unwrap().is_empty());
     }
 

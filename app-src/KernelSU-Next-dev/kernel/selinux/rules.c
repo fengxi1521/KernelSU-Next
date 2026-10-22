@@ -42,7 +42,7 @@ static void reset_avc_cache()
     selinux_xfrm_notify_policyload();
 }
 
-void apply_kernelsu_rules()
+void apply_xiaofeng_rules()
 {
     struct selinux_policy *pol, *old_pol;
     struct policydb *db;
@@ -60,7 +60,7 @@ void apply_kernelsu_rules()
         return;
     }
 
-    backup_sepolicy = ksu_dup_sepolicy(old_pol);
+    backup_sepolicy = xfg_dup_sepolicy(old_pol);
     if (IS_ERR(backup_sepolicy)) {
         pr_err("failed to create backup sepolicy: %ld\n", PTR_ERR(backup_sepolicy));
         backup_sepolicy = NULL;
@@ -68,21 +68,21 @@ void apply_kernelsu_rules()
         backup_sepolicy->sidtab = kzalloc(sizeof(*backup_sepolicy->sidtab), GFP_KERNEL);
         if (!backup_sepolicy->sidtab) {
             pr_err("failed to alloc backup sidtab\n");
-            ksu_destroy_sepolicy(backup_sepolicy);
+            xfg_destroy_sepolicy(backup_sepolicy);
             backup_sepolicy = NULL;
         } else {
             int ret = policydb_load_isids(&backup_sepolicy->policydb, backup_sepolicy->sidtab);
             if (ret) {
                 pr_err("failed to load isids for backup sepolicy: %d!\n", ret);
                 kfree(backup_sepolicy->sidtab);
-                ksu_destroy_sepolicy(backup_sepolicy);
+                xfg_destroy_sepolicy(backup_sepolicy);
                 backup_sepolicy = NULL;
             } else {
                 pr_info("backup sepolicy success! latest_granting=%d\n", backup_sepolicy->latest_granting);
             }
         }
     }
-    pol = ksu_dup_sepolicy(old_pol);
+    pol = xfg_dup_sepolicy(old_pol);
     if (IS_ERR(pol)) {
         pr_err("failed to dup selinux_policy: %ld\n", PTR_ERR(pol));
         goto out_unlock;
@@ -90,91 +90,91 @@ void apply_kernelsu_rules()
 
     db = &pol->policydb;
 
-    ksu_type(db, KERNEL_SU_DOMAIN, "domain");
-    ksu_permissive(db, KERNEL_SU_DOMAIN);
-    ksu_typeattribute(db, KERNEL_SU_DOMAIN, "mlstrustedsubject");
-    ksu_typeattribute(db, KERNEL_SU_DOMAIN, "netdomain");
-    ksu_typeattribute(db, KERNEL_SU_DOMAIN, "bluetoothdomain");
+    xfg_type(db, KERNEL_SU_DOMAIN, "domain");
+    xfg_permissive(db, KERNEL_SU_DOMAIN);
+    xfg_typeattribute(db, KERNEL_SU_DOMAIN, "mlstrustedsubject");
+    xfg_typeattribute(db, KERNEL_SU_DOMAIN, "netdomain");
+    xfg_typeattribute(db, KERNEL_SU_DOMAIN, "bluetoothdomain");
 
     // Create unconstrained file type
-    ksu_type(db, KERNEL_SU_FILE, "file_type");
-    ksu_typeattribute(db, KERNEL_SU_FILE, "mlstrustedobject");
-    ksu_allow(db, "domain", KERNEL_SU_FILE, ALL, ALL);
+    xfg_type(db, KERNEL_SU_FILE, "file_type");
+    xfg_typeattribute(db, KERNEL_SU_FILE, "mlstrustedobject");
+    xfg_allow(db, "domain", KERNEL_SU_FILE, ALL, ALL);
 
     // allow all!
-    ksu_allow(db, KERNEL_SU_DOMAIN, ALL, ALL, ALL);
+    xfg_allow(db, KERNEL_SU_DOMAIN, ALL, ALL, ALL);
 
     // allow us do any ioctl
     if (db->policyvers >= POLICYDB_VERSION_XPERMS_IOCTL) {
-        ksu_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "blk_file", ALL);
-        ksu_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "fifo_file", ALL);
-        ksu_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "chr_file", ALL);
-        ksu_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "file", ALL);
+        xfg_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "blk_file", ALL);
+        xfg_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "fifo_file", ALL);
+        xfg_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "chr_file", ALL);
+        xfg_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "file", ALL);
     }
 
-    // our ksud triggered by init
-    ksu_allow(db, "init", KERNEL_SU_DOMAIN, ALL, ALL);
+    // our xfgd triggered by init
+    xfg_allow(db, "init", KERNEL_SU_DOMAIN, ALL, ALL);
 
     // copied from Magisk rules
     // suRights
-    ksu_allow(db, "servicemanager", KERNEL_SU_DOMAIN, "dir", "search");
-    ksu_allow(db, "servicemanager", KERNEL_SU_DOMAIN, "dir", "read");
-    ksu_allow(db, "servicemanager", KERNEL_SU_DOMAIN, "file", "open");
-    ksu_allow(db, "servicemanager", KERNEL_SU_DOMAIN, "file", "read");
-    ksu_allow(db, "servicemanager", KERNEL_SU_DOMAIN, "process", "getattr");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "process", "sigchld");
+    xfg_allow(db, "servicemanager", KERNEL_SU_DOMAIN, "dir", "search");
+    xfg_allow(db, "servicemanager", KERNEL_SU_DOMAIN, "dir", "read");
+    xfg_allow(db, "servicemanager", KERNEL_SU_DOMAIN, "file", "open");
+    xfg_allow(db, "servicemanager", KERNEL_SU_DOMAIN, "file", "read");
+    xfg_allow(db, "servicemanager", KERNEL_SU_DOMAIN, "process", "getattr");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "process", "sigchld");
 
     // allowLog
-    ksu_allow(db, "logd", KERNEL_SU_DOMAIN, "dir", "search");
-    ksu_allow(db, "logd", KERNEL_SU_DOMAIN, "file", "read");
-    ksu_allow(db, "logd", KERNEL_SU_DOMAIN, "file", "open");
-    ksu_allow(db, "logd", KERNEL_SU_DOMAIN, "file", "getattr");
+    xfg_allow(db, "logd", KERNEL_SU_DOMAIN, "dir", "search");
+    xfg_allow(db, "logd", KERNEL_SU_DOMAIN, "file", "read");
+    xfg_allow(db, "logd", KERNEL_SU_DOMAIN, "file", "open");
+    xfg_allow(db, "logd", KERNEL_SU_DOMAIN, "file", "getattr");
 
     // dumpsys, send fd
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "fd", "use");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "fifo_file", "write");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "fifo_file", "read");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "fifo_file", "open");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "fifo_file", "getattr");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "unix_stream_socket", "read");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "unix_stream_socket", "write");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "unix_stream_socket", "connectto");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "unix_stream_socket", "getopt");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "unix_stream_socket", "getattr");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "fd", "use");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "fifo_file", "write");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "fifo_file", "read");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "fifo_file", "open");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "fifo_file", "getattr");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "unix_stream_socket", "read");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "unix_stream_socket", "write");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "unix_stream_socket", "connectto");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "unix_stream_socket", "getopt");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "unix_stream_socket", "getattr");
 
     // use memfd created by su domain
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "memfd_file", "execute");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "memfd_file", "getattr");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "memfd_file", "map");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "memfd_file", "read");
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "memfd_file", "write");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "memfd_file", "execute");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "memfd_file", "getattr");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "memfd_file", "map");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "memfd_file", "read");
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "memfd_file", "write");
 
     // bootctl
-    ksu_allow(db, "hwservicemanager", KERNEL_SU_DOMAIN, "dir", "search");
-    ksu_allow(db, "hwservicemanager", KERNEL_SU_DOMAIN, "file", "read");
-    ksu_allow(db, "hwservicemanager", KERNEL_SU_DOMAIN, "file", "open");
-    ksu_allow(db, "hwservicemanager", KERNEL_SU_DOMAIN, "process", "getattr");
+    xfg_allow(db, "hwservicemanager", KERNEL_SU_DOMAIN, "dir", "search");
+    xfg_allow(db, "hwservicemanager", KERNEL_SU_DOMAIN, "file", "read");
+    xfg_allow(db, "hwservicemanager", KERNEL_SU_DOMAIN, "file", "open");
+    xfg_allow(db, "hwservicemanager", KERNEL_SU_DOMAIN, "process", "getattr");
 
     // Allow all binder transactions
-    ksu_allow(db, "domain", KERNEL_SU_DOMAIN, "binder", ALL);
+    xfg_allow(db, "domain", KERNEL_SU_DOMAIN, "binder", ALL);
 
     // Allow system server kill su process
-    ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "getpgid");
-    ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "sigkill");
+    xfg_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "getpgid");
+    xfg_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "sigkill");
 
     // Return value ignored: the policy is published either way.
-    ksu_policydb_fixup_len(db, "apply_kernelsu_rules");
+    xfg_policydb_fixup_len(db, "apply_xiaofeng_rules");
     rcu_assign_pointer(selinux_state.policy, pol);
     synchronize_rcu();
-    ksu_destroy_sepolicy(old_pol);
+    xfg_destroy_sepolicy(old_pol);
 
     reset_avc_cache();
 out_unlock:
     mutex_unlock(&selinux_state.policy_mutex);
 }
 
-#define KSU_SEPOLICY_MAX_BATCH_SIZE (8U * 1024U * 1024U)
-#define KSU_SEPOLICY_MAX_ARGS 5
+#define XFG_SEPOLICY_MAX_BATCH_SIZE (8U * 1024U * 1024U)
+#define XFG_SEPOLICY_MAX_ARGS 5
 
 struct sepol_data {
     u32 cmd;
@@ -249,22 +249,22 @@ static int sepol_require_not_all(const char *value, const char *name)
 static int sepol_expected_argc(u32 cmd)
 {
     switch (cmd) {
-    case KSU_SEPOLICY_CMD_NORMAL_PERM:
+    case XFG_SEPOLICY_CMD_NORMAL_PERM:
         return 4;
-    case KSU_SEPOLICY_CMD_XPERM:
+    case XFG_SEPOLICY_CMD_XPERM:
         return 5;
-    case KSU_SEPOLICY_CMD_TYPE_STATE:
+    case XFG_SEPOLICY_CMD_TYPE_STATE:
         return 1;
-    case KSU_SEPOLICY_CMD_TYPE:
-    case KSU_SEPOLICY_CMD_TYPE_ATTR:
+    case XFG_SEPOLICY_CMD_TYPE:
+    case XFG_SEPOLICY_CMD_TYPE_ATTR:
         return 2;
-    case KSU_SEPOLICY_CMD_ATTR:
+    case XFG_SEPOLICY_CMD_ATTR:
         return 1;
-    case KSU_SEPOLICY_CMD_TYPE_TRANSITION:
+    case XFG_SEPOLICY_CMD_TYPE_TRANSITION:
         return 5;
-    case KSU_SEPOLICY_CMD_TYPE_CHANGE:
+    case XFG_SEPOLICY_CMD_TYPE_CHANGE:
         return 4;
-    case KSU_SEPOLICY_CMD_GENFSCON:
+    case XFG_SEPOLICY_CMD_GENFSCON:
         return 3;
     default:
         return -EINVAL;
@@ -279,21 +279,21 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
     int ret;
 
     switch (header->cmd) {
-    case KSU_SEPOLICY_CMD_NORMAL_PERM:
-        if (header->subcmd == KSU_SEPOLICY_SUBCMD_NORMAL_PERM_ALLOW) {
-            success = ksu_allow(db, args[0], args[1], args[2], args[3]);
-        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_NORMAL_PERM_DENY) {
-            success = ksu_deny(db, args[0], args[1], args[2], args[3]);
-        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_NORMAL_PERM_AUDITALLOW) {
-            success = ksu_auditallow(db, args[0], args[1], args[2], args[3]);
-        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_NORMAL_PERM_DONTAUDIT) {
-            success = ksu_dontaudit(db, args[0], args[1], args[2], args[3]);
+    case XFG_SEPOLICY_CMD_NORMAL_PERM:
+        if (header->subcmd == XFG_SEPOLICY_SUBCMD_NORMAL_PERM_ALLOW) {
+            success = xfg_allow(db, args[0], args[1], args[2], args[3]);
+        } else if (header->subcmd == XFG_SEPOLICY_SUBCMD_NORMAL_PERM_DENY) {
+            success = xfg_deny(db, args[0], args[1], args[2], args[3]);
+        } else if (header->subcmd == XFG_SEPOLICY_SUBCMD_NORMAL_PERM_AUDITALLOW) {
+            success = xfg_auditallow(db, args[0], args[1], args[2], args[3]);
+        } else if (header->subcmd == XFG_SEPOLICY_SUBCMD_NORMAL_PERM_DONTAUDIT) {
+            success = xfg_dontaudit(db, args[0], args[1], args[2], args[3]);
         } else {
             pr_err("sepol: unknown subcmd: %d\n", header->subcmd);
         }
         return success ? 0 : -EINVAL;
 
-    case KSU_SEPOLICY_CMD_XPERM:
+    case XFG_SEPOLICY_CMD_XPERM:
         ret = sepol_require_not_all(args[3], "operation");
         if (ret < 0) {
             return ret;
@@ -303,36 +303,36 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
             return ret;
         }
 
-        if (header->subcmd == KSU_SEPOLICY_SUBCMD_XPERM_ALLOW) {
-            success = ksu_allowxperm(db, args[0], args[1], args[2], args[4]);
-        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_XPERM_AUDITALLOW) {
+        if (header->subcmd == XFG_SEPOLICY_SUBCMD_XPERM_ALLOW) {
+            success = xfg_allowxperm(db, args[0], args[1], args[2], args[4]);
+        } else if (header->subcmd == XFG_SEPOLICY_SUBCMD_XPERM_AUDITALLOW) {
             success =
-                ksu_auditallowxperm(db, args[0], args[1], args[2], args[4]);
-        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_XPERM_DONTAUDIT) {
+                xfg_auditallowxperm(db, args[0], args[1], args[2], args[4]);
+        } else if (header->subcmd == XFG_SEPOLICY_SUBCMD_XPERM_DONTAUDIT) {
             success =
-                ksu_dontauditxperm(db, args[0], args[1], args[2], args[4]);
+                xfg_dontauditxperm(db, args[0], args[1], args[2], args[4]);
         } else {
             pr_err("sepol: unknown subcmd: %d\n", header->subcmd);
         }
         return success ? 0 : -EINVAL;
 
-    case KSU_SEPOLICY_CMD_TYPE_STATE:
+    case XFG_SEPOLICY_CMD_TYPE_STATE:
         ret = sepol_require_not_all(args[0], "type");
         if (ret < 0) {
             return ret;
         }
 
-        if (header->subcmd == KSU_SEPOLICY_SUBCMD_TYPE_STATE_PERMISSIVE) {
-            success = ksu_permissive(db, args[0]);
-        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_TYPE_STATE_ENFORCE) {
-            success = ksu_enforce(db, args[0]);
+        if (header->subcmd == XFG_SEPOLICY_SUBCMD_TYPE_STATE_PERMISSIVE) {
+            success = xfg_permissive(db, args[0]);
+        } else if (header->subcmd == XFG_SEPOLICY_SUBCMD_TYPE_STATE_ENFORCE) {
+            success = xfg_enforce(db, args[0]);
         } else {
             pr_err("sepol: unknown subcmd: %d\n", header->subcmd);
         }
         return success ? 0 : -EINVAL;
 
-    case KSU_SEPOLICY_CMD_TYPE:
-    case KSU_SEPOLICY_CMD_TYPE_ATTR:
+    case XFG_SEPOLICY_CMD_TYPE:
+    case XFG_SEPOLICY_CMD_TYPE_ATTR:
         ret = sepol_require_not_all(args[0], "type");
         if (ret < 0) {
             return ret;
@@ -342,10 +342,10 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
             return ret;
         }
 
-        if (header->cmd == KSU_SEPOLICY_CMD_TYPE) {
-            success = ksu_type(db, args[0], args[1]);
+        if (header->cmd == XFG_SEPOLICY_CMD_TYPE) {
+            success = xfg_type(db, args[0], args[1]);
         } else {
-            success = ksu_typeattribute(db, args[0], args[1]);
+            success = xfg_typeattribute(db, args[0], args[1]);
         }
         if (!success) {
             pr_err("sepol: %d failed.\n", header->cmd);
@@ -353,19 +353,19 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
         }
         return 0;
 
-    case KSU_SEPOLICY_CMD_ATTR:
+    case XFG_SEPOLICY_CMD_ATTR:
         ret = sepol_require_not_all(args[0], "attribute");
         if (ret < 0) {
             return ret;
         }
 
-        if (!ksu_attribute(db, args[0])) {
+        if (!xfg_attribute(db, args[0])) {
             pr_err("sepol: %d failed.\n", header->cmd);
             return -EINVAL;
         }
         return 0;
 
-    case KSU_SEPOLICY_CMD_TYPE_TRANSITION: {
+    case XFG_SEPOLICY_CMD_TYPE_TRANSITION: {
         const char *object = ALL;
 
         ret = sepol_require_not_all(args[0], "src");
@@ -388,11 +388,11 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
         object = args[4];
 
         success =
-            ksu_type_transition(db, args[0], args[1], args[2], args[3], object);
+            xfg_type_transition(db, args[0], args[1], args[2], args[3], object);
         return success ? 0 : -EINVAL;
     }
 
-    case KSU_SEPOLICY_CMD_TYPE_CHANGE:
+    case XFG_SEPOLICY_CMD_TYPE_CHANGE:
         ret = sepol_require_not_all(args[0], "src");
         if (ret < 0) {
             return ret;
@@ -410,16 +410,16 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
             return ret;
         }
 
-        if (header->subcmd == KSU_SEPOLICY_SUBCMD_TYPE_CHANGE_CHANGE) {
-            success = ksu_type_change(db, args[0], args[1], args[2], args[3]);
-        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_TYPE_CHANGE_MEMBER) {
-            success = ksu_type_member(db, args[0], args[1], args[2], args[3]);
+        if (header->subcmd == XFG_SEPOLICY_SUBCMD_TYPE_CHANGE_CHANGE) {
+            success = xfg_type_change(db, args[0], args[1], args[2], args[3]);
+        } else if (header->subcmd == XFG_SEPOLICY_SUBCMD_TYPE_CHANGE_MEMBER) {
+            success = xfg_type_member(db, args[0], args[1], args[2], args[3]);
         } else {
             pr_err("sepol: unknown subcmd: %d\n", header->subcmd);
         }
         return success ? 0 : -EINVAL;
 
-    case KSU_SEPOLICY_CMD_GENFSCON:
+    case XFG_SEPOLICY_CMD_GENFSCON:
         ret = sepol_require_not_all(args[0], "name");
         if (ret < 0) {
             return ret;
@@ -433,7 +433,7 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
             return ret;
         }
 
-        if (!ksu_genfscon(db, args[0], args[1], args[2])) {
+        if (!xfg_genfscon(db, args[0], args[1], args[2])) {
             pr_err("sepol: %d failed.\n", header->cmd);
             return -EINVAL;
         }
@@ -459,7 +459,7 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
         return -EINVAL;
     }
 
-    if (data_len > KSU_SEPOLICY_MAX_BATCH_SIZE) {
+    if (data_len > XFG_SEPOLICY_MAX_BATCH_SIZE) {
         return -E2BIG;
     }
 
@@ -481,15 +481,15 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
 
     old_pol = rcu_dereference_protected(selinux_state.policy, lockdep_is_held(&selinux_state.policy_mutex));
     if (!old_pol) {
-        pr_warn("SELinux policy is NULL. Skipping ksu_handle_sepolicy.\n");
+        pr_warn("SELinux policy is NULL. Skipping xfg_handle_sepolicy.\n");
         ret = -EINVAL;
         goto out_unlock;
     }
 
-    pol = ksu_dup_sepolicy(old_pol);
+    pol = xfg_dup_sepolicy(old_pol);
     if (IS_ERR(pol)) {
         ret = PTR_ERR(pol);
-        pr_err("ksu_dup_sepolicy err: %d\n", ret);
+        pr_err("xfg_dup_sepolicy err: %d\n", ret);
         goto out_unlock;
     }
     db = &pol->policydb;
@@ -502,7 +502,7 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
     cmd_index = 0;
     while (cursor.cur < cursor.end) {
         struct sepol_data header;
-        const char *args[KSU_SEPOLICY_MAX_ARGS] = { 0 };
+        const char *args[XFG_SEPOLICY_MAX_ARGS] = { 0 };
         int expected_argc;
         u32 arg_index;
 
@@ -513,7 +513,7 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
         }
 
         expected_argc = sepol_expected_argc(header.cmd);
-        if (expected_argc < 0 || expected_argc > KSU_SEPOLICY_MAX_ARGS) {
+        if (expected_argc < 0 || expected_argc > XFG_SEPOLICY_MAX_ARGS) {
             ret = -EINVAL;
             pr_err("sepol: invalid cmd header #%u.\n", cmd_index);
             goto out_drop_new_policy;
@@ -539,17 +539,17 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
     }
 
     // Return value ignored: the policy is published either way.
-    ksu_policydb_fixup_len(db, "handle_sepolicy");
+    xfg_policydb_fixup_len(db, "handle_sepolicy");
     rcu_assign_pointer(selinux_state.policy, pol);
     synchronize_rcu();
-    ksu_destroy_sepolicy(old_pol);
+    xfg_destroy_sepolicy(old_pol);
 
     reset_avc_cache();
     ret = success_cmd_count;
     goto out_unlock;
 
 out_drop_new_policy:
-    ksu_destroy_sepolicy(pol);
+    xfg_destroy_sepolicy(pol);
 out_unlock:
     mutex_unlock(&selinux_state.policy_mutex);
 out_free:

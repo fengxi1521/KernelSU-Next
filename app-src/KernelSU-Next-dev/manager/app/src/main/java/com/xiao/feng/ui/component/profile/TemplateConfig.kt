@@ -18,7 +18,7 @@ import com.xiao.feng.ui.util.setSepolicy
 import com.xiao.feng.ui.viewmodel.getTemplateInfoById
 
 /**
- * @author weishu
+ * @author XiaoFeng
  * @date 2023/10/21.
  */
 @OptIn(ExperimentalMaterial3Api::class)

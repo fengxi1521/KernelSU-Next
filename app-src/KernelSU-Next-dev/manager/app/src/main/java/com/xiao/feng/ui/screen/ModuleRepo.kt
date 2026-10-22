@@ -117,7 +117,7 @@ private fun loadNonFreeEnabled(context: Context): Boolean {
 }
 
 /**
- * @author rifsxd
+ * @author XiaoFeng
  * @date 2026/1/29.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,7 +139,7 @@ fun ModuleRepoScreen(navigator: DestinationsNavigator) {
     val scope = rememberCoroutineScope()
 
     val isManager = Natives.isManager
-    val ksuVersion = if (isManager) Natives.version else null
+    val xfgVersion = if (isManager) Natives.version else null
     val scrollState = LocalScrollState.current
     val navBarEnabled = LocalNavBarEnabled.current
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current

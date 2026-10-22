@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * susfs_main.c - SUSFS LKM entry point: the layer table plus this module's control nodes.
- * Loaded via `ksud insmod`, with unexported symbols relocated via kallsyms.
+ * Loaded via `xfgd insmod`, with unexported symbols relocated via kallsyms.
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -13,10 +13,10 @@
 #include <linux/security.h>	/* security_secctx_to_secid(): the nodes' SELinux label */
 
 #include "symbol_resolver.h"
-#include "patch_memory.h"	/* ksu_patch_memory_init(): the flush helper's name differs per kernel */
+#include "patch_memory.h"	/* xfg_patch_memory_init(): the flush helper's name differs per kernel */
 #include "susfs_log.h"
-#include "ksu_umount_gate.h"
-#include "ksu_allow_gate.h"	/* KernelSU's allow predicate: the control-node gate */
+#include "xfg_umount_gate.h"
+#include "xfg_allow_gate.h"	/* XiaoFeng's allow predicate: the control-node gate */
 #include "btf_layout.h"		/* the SELinux inode_security_struct.sid offset, by BTF */
 #include "lsm_hook.h"
 #include "susfs.h"
@@ -81,8 +81,8 @@ static void susfs_self_hide_nodes(void)
 
 /* The control nodes are born with procfs's default label, u:object_r:proc:s0, whose policy refuses
  * even an adb shell that this module's gate accepted (measured: `cat /proc/susfs_open_redirect`
- * from u:r:shell:s0 is EACCES, while the same read from u:r:ksu:s0 works).  ksu_file is the type
- * the KernelSU policy already grants to the processes that may use su - exactly the set these
+ * from u:r:shell:s0 is EACCES, while the same read from u:r:xfg:s0 works).  xfg_file is the type
+ * the XiaoFeng policy already grants to the processes that may use su - exactly the set these
  * nodes exist for - so they are moved under it.
  *
  * There is no LSM interface for this: security_inode_setsecurity() has no inode_setsecurity hook
@@ -95,7 +95,7 @@ static void susfs_self_hide_nodes(void)
  *
  * This runs once at load, on inodes nobody has opened yet; a plain 32-bit store needs no lock. */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
-static const char susfs_control_selinux_ctx[] = "u:object_r:ksu_file:s0";
+static const char susfs_control_selinux_ctx[] = "u:object_r:xfg_file:s0";
 static const char susfs_proc_selinux_ctx[] = "u:object_r:proc:s0";
 static size_t susfs_isec_base_offset;	/* SELinux's slot inside inode->i_security */
 static size_t susfs_isec_sid_offset;
@@ -165,7 +165,7 @@ static void susfs_relabel_control_nodes(void)
      * default (proc) label.  That is exactly why the gate must NOT widen here: susfs_control_visible()
      * stays root-only until susfs_control_relabelled is set, because proc's policy answers EACCES to
      * the shell and to su-granted apps - the gate letting them in would turn the nodes' ENOENT into
-     * an EACCES that proves they exist (susfs4ksu-lkm#108). */
+     * an EACCES that proves they exist (susfs4xfg-lkm#108). */
     return;
 #else
     int i, found = 0, changed = 0;
@@ -173,7 +173,7 @@ static void susfs_relabel_control_nodes(void)
     if (!susfs_expose_proc)
         return;
     if (!susfs_prepare_control_sid()) {
-        SUSFS_LOGI("susfs: no ksu_file label applied (context or BTF layout unavailable)\n");
+        SUSFS_LOGI("susfs: no xfg_file label applied (context or BTF layout unavailable)\n");
         return;
     }
     for (i = 0; i < ARRAY_SIZE(susfs_self_hide_paths); i++) {
@@ -198,7 +198,7 @@ static void susfs_relabel_control_nodes(void)
     }
     SUSFS_LOGI("susfs: %d of %d control node(s) relabelled to %s\n",
                changed, found, susfs_control_selinux_ctx);
-    /* Only a node that is actually relabelled may be widened to the KernelSU set: a node left under
+    /* Only a node that is actually relabelled may be widened to the XiaoFeng set: a node left under
      * proc's label answers EACCES to exactly the callers the wider gate just admitted, and EACCES
      * says "it is here" where ENOENT says "nothing here".  All-or-nothing on purpose - a partial
      * relabel means the set is not usable, and root-only is what those labels say anyway. */
@@ -220,7 +220,7 @@ static void susfs_relabel_control_nodes(void)
  * are idempotent, which lets one path serve rollback and unload alike. */
 static int layer_lsm_hook_init(void)
 {
-    ksu_lsm_hook_init();
+    xfg_lsm_hook_init();
     return 0;
 }
 
@@ -232,13 +232,13 @@ static struct {
     bool fatal;
     bool armed;			/* exit is run for every layer that was attempted */
 } susfs_layers[] = {
-    /* First, and NOT fatal: this layer only decides whether KernelSU's predicate was found at load.
+    /* First, and NOT fatal: this layer only decides whether XiaoFeng's predicate was found at load.
      * When it was not, the gates answer the pre-#34 way and every other layer still works - so a
      * failure here is a degradation, not a reason to refuse the module.  Skipping this init entirely
      * (fail_layer=1) is safe for the same reason: the flag it sets defaults to the pre-#34 answer. */
-    { "ksu_umount_gate", susfs_ksu_umount_gate_init,	NULL,			false, false },
-    { "ksu_allow_gate",	susfs_ksu_allow_gate_init,	NULL,			false, false },
-    { "lsm_hook",	layer_lsm_hook_init,		ksu_lsm_hook_exit,	false, false },
+    { "xfg_umount_gate", susfs_xfg_umount_gate_init,	NULL,			false, false },
+    { "xfg_allow_gate",	susfs_xfg_allow_gate_init,	NULL,			false, false },
+    { "lsm_hook",	layer_lsm_hook_init,		xfg_lsm_hook_exit,	false, false },
     { "sus_path",	sus_path_init,			sus_path_exit,		true,  false },
     /* After sus_path, because this layer asks sus_path's rule table for every open it
      * post-checks - arming it first would install table entries that answer from a table
@@ -263,8 +263,8 @@ static struct {
 
 /* Diagnostic: make one layer's init fail, by 1-based index, to exercise the rollback path
  * on the device - a `fatal` layer failing must leave the load with nothing armed.
- * `fail_layer=1` skips the ksu_umount_gate init WITHOUT failing the load (that layer is not fatal),
- * which is safe only because its flag defaults to the pre-#34 answer - see ksu_umount_gate.c. */
+ * `fail_layer=1` skips the xfg_umount_gate init WITHOUT failing the load (that layer is not fatal),
+ * which is safe only because its flag defaults to the pre-#34 answer - see xfg_umount_gate.c. */
 static int fail_layer;
 module_param_named(fail_layer, fail_layer, int, 0644);
 
@@ -295,7 +295,7 @@ static int __init susfs_init(void)
         return -EINVAL;
 
     SUSFS_LOGI("init v%s\n", SUSFS_LKM_VERSION);
-    ksu_init_symbol_resolver();
+    xfg_init_symbol_resolver();
 
     /* Dead man's switch: refuse loading if in-built SuSFS is present */
     if (find_kernel_symbol_exact("susfs_is_inode_sus_path") ||
@@ -313,7 +313,7 @@ static int __init susfs_init(void)
      * layer and it installs its hooks by patching text, so a kernel carrying neither spelling ends
      * up refusing to load the module - with the reason in the log right here.  On 6.12+ that path
      * goes through static calls and this only costs the layers that do patch. */
-    if (ksu_patch_memory_init())
+    if (xfg_patch_memory_init())
         pr_warn("susfs_guard_lkm: patching unavailable on this kernel (see patch_memory.c)\n");
 
     for (i = 0; i < (int)ARRAY_SIZE(susfs_layers); i++) {
@@ -404,7 +404,7 @@ MODULE_LICENSE("GPL");
  * __set_fixmap, copy_to_kernel_nofault), so loading without a
  * helper still needs those to be resolved at runtime.  The userspace loader
  * (tools/susfs_insmod.c) sidesteps the whole question by rewriting undefined symbols to
- * absolute addresses, exactly as KernelSU's ksud does - see README. */
+ * absolute addresses, exactly as XiaoFeng's xfgd does - see README. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)
 MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 #else

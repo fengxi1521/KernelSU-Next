@@ -29,7 +29,7 @@
 #include "susfs_log.h"
 #include "susfs.h"	/* susfs_abi_path_ok */
 #include "symbol_resolver.h"	/* find_kernel_symbol_exact, for the walk ops */
-#include "ksu_umount_gate.h"	/* susfs_is_current_proc_umounted_app (issue #34) */
+#include "xfg_umount_gate.h"	/* susfs_is_current_proc_umounted_app (issue #34) */
 #include "susfs_kprobe.h"
 
 #define SUS_MAP_MAX 64
@@ -99,9 +99,9 @@ static bool sus_map_lookup(unsigned long ino, dev_t dev)
  *
  * Upstream hides behind SUSFS_IS_INODE_SUS_MAP() -> susfs_is_current_proc_umounted_app()
  * = (test_thread_flag(TIF_PROC_UMOUNTED) && current_uid().val >= 10000): apps only - and only the
- * ones KernelSU umounts modules for - so root/init and a su-granted app see the real mapping.
- * TIF_PROC_UMOUNTED is set by the SUSFS-patched KernelSU, which this LKM is not, so the same
- * question is put to KernelSU directly (ksu_umount_gate.h, issue #34); the plain `uid >= 10000`
+ * ones XiaoFeng umounts modules for - so root/init and a su-granted app see the real mapping.
+ * TIF_PROC_UMOUNTED is set by the SUSFS-patched XiaoFeng, which this LKM is not, so the same
+ * question is put to XiaoFeng directly (xfg_umount_gate.h, issue #34); the plain `uid >= 10000`
  * proxy this replaces hid from the manager and from su-granted apps too.
  * Configuration stays ungated: the supercall and map_ino are rule management. */
 static bool sus_map_gate_ok(void)
@@ -112,7 +112,7 @@ static bool sus_map_gate_ok(void)
 /* Lines dropped by the show_map / show_map_vma / show_smap probes: this is the decision.
  * Kept apart from hide_modules and from n_walk_skip, which is the walk layer that only feeds
  * it - a vendor kernel can have every walk counter moving and this one at zero, which is
- * exactly the fingerprint of an inlined show_map_vma (susfs4ksu-lkm#102).  Declared here
+ * exactly the fingerprint of an inlined show_map_vma (susfs4xfg-lkm#102).  Declared here
  * because sus_map_skip_vma_pre() below is its first user. */
 static atomic_t n_show_hides = ATOMIC_INIT(0);
 
@@ -179,7 +179,7 @@ static struct kprobe kp_map_smap = {
  * inline away), and it calls show_map_vma() for every line.  A vendor kernel is free to
  * inline that call - measured on a vivo 6.6.89: `show_map_vma` exists in /proc/kallsyms
  * and the probe arms, but it never fires, so map_stat shows hides=0 while the listing
- * stays visible (susfs4ksu-lkm#102).  Probing show_map() instead catches the same vma at
+ * stays visible (susfs4xfg-lkm#102).  Probing show_map() instead catches the same vma at
  * the outer layer; and because a hit there returns straight to the caller, the inner
  * probe (where it is out of line) never sees the same vma twice.  Both take
  * (struct seq_file *, void *v) with the vma as the second argument, so one handler serves

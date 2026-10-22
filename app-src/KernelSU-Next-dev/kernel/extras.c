@@ -5,8 +5,8 @@
 #include "policy/feature.h"
 #include "uapi/feature.h"
 #include "klog.h"
-#include "ksu.h"
-#include "runtime/ksud.h"
+#include "xfg.h"
+#include "runtime/xfgd.h"
 #include "infra/seccomp_cache.h"
 
 // sorry for the ifdef hell
@@ -20,15 +20,15 @@ static u32 priv_app_sid = 0;
 // init as disabled by default
 static atomic_t disable_spoof = ATOMIC_INIT(1);
 
-void ksu_avc_spoof_enable();
-void ksu_avc_spoof_disable();
+void xfg_avc_spoof_enable();
+void xfg_avc_spoof_disable();
 
-static bool ksu_avc_spoof_enabled = true;
+static bool xfg_avc_spoof_enabled = true;
 static bool boot_completed = false;
 
 static int avc_spoof_feature_get(u64 *value)
 {
-	*value = ksu_avc_spoof_enabled ? 1 : 0;
+	*value = xfg_avc_spoof_enabled ? 1 : 0;
 	return 0;
 }
 
@@ -36,18 +36,18 @@ static int avc_spoof_feature_set(u64 value)
 {
 	bool enable = value != 0;
 
-	if (enable == ksu_avc_spoof_enabled) {
+	if (enable == xfg_avc_spoof_enabled) {
 		pr_info("avc_spoof: no need to change\n");
 		return 0;
 	}
 
-	ksu_avc_spoof_enabled = enable;
+	xfg_avc_spoof_enabled = enable;
 
 	if (boot_completed) {
 		if (enable) {
-			ksu_avc_spoof_enable();
+			xfg_avc_spoof_enable();
 		} else {
-			ksu_avc_spoof_disable();
+			xfg_avc_spoof_disable();
 		}
 	}
 
@@ -56,8 +56,8 @@ static int avc_spoof_feature_set(u64 value)
 	return 0;
 }
 
-static const struct ksu_feature_handler avc_spoof_handler = {
-	.feature_id = KSU_FEATURE_AVC_SPOOF,
+static const struct xfg_feature_handler avc_spoof_handler = {
+	.feature_id = XFG_FEATURE_AVC_SPOOF,
 	.name = "avc_spoof",
 	.get_handler = avc_spoof_feature_get,
 	.set_handler = avc_spoof_feature_set,
@@ -66,14 +66,14 @@ static const struct ksu_feature_handler avc_spoof_handler = {
 static int get_sid()
 {
 	// dont load at all if we cant get sids
-	int err = ksu_security_secctx_to_secid("u:r:su:s0", strlen("u:r:su:s0"), &su_sid);
+	int err = xfg_security_secctx_to_secid("u:r:su:s0", strlen("u:r:su:s0"), &su_sid);
 	if (err) {
 		pr_info("avc_spoof/get_sid: su_sid not found!\n");
 		return -1;
 	}
 	pr_info("avc_spoof/get_sid: su_sid: %u\n", su_sid);
 
-	err = ksu_security_secctx_to_secid("u:r:priv_app:s0:c512,c768", strlen("u:r:priv_app:s0:c512,c768"), &priv_app_sid);
+	err = xfg_security_secctx_to_secid("u:r:priv_app:s0:c512,c768", strlen("u:r:priv_app:s0:c512,c768"), &priv_app_sid);
 	if (err) {
 		pr_info("avc_spoof/get_sid: priv_app_sid not found!\n");
 		return -1;
@@ -82,7 +82,7 @@ static int get_sid()
 	return 0;
 }
 
-int ksu_handle_slow_avc_audit(u32 *tsid)
+int xfg_handle_slow_avc_audit(u32 *tsid)
 {
 	if (atomic_read(&disable_spoof))
 		return 0;
@@ -113,7 +113,7 @@ static int slow_avc_audit_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	 * for < 4.17 int slow_avc_audit(u32 ssid, u32 tsid
 	 * for >= 4.17 int slow_avc_audit(struct selinux_state *state, u32 ssid, u32 tsid
 	 * for >= 6.4 int slow_avc_audit(u32 ssid, u32 tsid
-	 * not to mention theres also DKSU_HAS_SELINUX_STATE
+	 * not to mention theres also DXFG_HAS_SELINUX_STATE
 	 * since its hard to make sure this selinux state thing 
 	 * cross crossing with 4.17 ~ 6.4's where slow_avc_audit
 	 * changes abi (tsid in arg2 vs arg3)
@@ -121,10 +121,10 @@ static int slow_avc_audit_pre_handler(struct kprobe *p, struct pt_regs *regs)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
 	u32 *tsid = (u32 *)&PT_REGS_PARM2(regs);
-	ksu_handle_slow_avc_audit(tsid);
+	xfg_handle_slow_avc_audit(tsid);
 #else
 	u32 *tsid = (u32 *)&PT_REGS_PARM3(regs);
-	ksu_handle_slow_avc_audit(tsid);
+	xfg_handle_slow_avc_audit(tsid);
 #endif
 
 	return 0;
@@ -161,7 +161,7 @@ static void destroy_kprobe(struct kprobe **kp_ptr)
 }
 #endif // CONFIG_KPROBES
 
-void ksu_avc_spoof_disable(void)
+void xfg_avc_spoof_disable(void)
 {
 #ifdef CONFIG_KPROBES
 	pr_info("avc_spoof/exit: unregister slow_avc_audit kprobe!\n");
@@ -171,7 +171,7 @@ void ksu_avc_spoof_disable(void)
 	pr_info("avc_spoof/exit: slow_avc_audit spoofing disabled!\n");
 }
 
-void ksu_avc_spoof_enable(void) 
+void xfg_avc_spoof_enable(void) 
 {
 	int ret = get_sid();
 	if (ret) {
@@ -189,26 +189,26 @@ void ksu_avc_spoof_enable(void)
 	pr_info("avc_spoof/init: slow_avc_audit spoofing enabled!\n");
 }
 
-void ksu_avc_spoof_late_init(void)
+void xfg_avc_spoof_late_init(void)
 {
 	boot_completed = true;
 	
-    if (ksu_avc_spoof_enabled) {
-		ksu_avc_spoof_enable();
+    if (xfg_avc_spoof_enabled) {
+		xfg_avc_spoof_enable();
 	}
 }
 
-void __init ksu_avc_spoof_init(void)
+void __init xfg_avc_spoof_init(void)
 {
-	if (ksu_register_feature_handler(&avc_spoof_handler)) {
+	if (xfg_register_feature_handler(&avc_spoof_handler)) {
 		pr_err("Failed to register avc spoof feature handler\n");
 	}
 }
 
-void __exit ksu_avc_spoof_exit(void)
+void __exit xfg_avc_spoof_exit(void)
 {
-	if (ksu_avc_spoof_enabled) {
-		ksu_avc_spoof_disable();
+	if (xfg_avc_spoof_enabled) {
+		xfg_avc_spoof_disable();
 	}
-	ksu_unregister_feature_handler(KSU_FEATURE_AVC_SPOOF);
+	xfg_unregister_feature_handler(XFG_FEATURE_AVC_SPOOF);
 }
